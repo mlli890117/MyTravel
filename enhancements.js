@@ -98,3 +98,14 @@
 
   window.addEventListener('load',()=>{setTimeout(()=>refreshDailyFx(false),1200);setTimeout(()=>{try{renderAll()}catch(e){}},100)});
 })();
+
+// Always load planner v11 directly from a script that index.html already includes.
+(() => {
+  const id='planner-v11-loader';
+  if(document.getElementById(id)) return;
+  const s=document.createElement('script');
+  s.id=id;
+  s.src='./planner-v11.js?v=11';
+  s.defer=true;
+  document.head.appendChild(s);
+})();
