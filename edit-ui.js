@@ -1,19 +1,45 @@
-/* My Travel editor + trip emergency v24 */
+/* My Travel editor + trip emergency v25 */
 (() => {
   const $=id=>document.getElementById(id);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   let editingId=null;
   let emergencyCache={};
 
-  async function geocodeAddress(address){
-    if(!address?.trim())return null;
+  function countryHint(){
+    const s=`${trip()?.name||''} ${trip()?.theme||''}`.toLowerCase();
+    if(/日本|宮古|沖繩|北海道|札幌|東京|大阪|京都|福岡|japan|okinawa|miyako|sapporo|tokyo/.test(s))return'jp';
+    if(/韓國|首爾|釜山|濟州|korea|seoul|busan|jeju/.test(s))return'kr';
+    if(/新加坡|singapore/.test(s))return'sg';
+    if(/台灣|taiwan|taipei|台北/.test(s))return'tw';
+    return'';
+  }
+
+  async function nominatimSearch(q,country=''){
+    if(!q)return null;
+    const url=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(q)}${country?`&countrycodes=${country}`:''}`;
+    const r=await fetch(url,{cache:'no-store',headers:{'Accept':'application/json','Accept-Language':'zh-TW,ja,en;q=0.8'}});
+    if(!r.ok)throw new Error('geocode '+r.status);
+    const a=await r.json();
+    if(!a?.[0])return null;
+    const lat=Number(a[0].lat),lng=Number(a[0].lon);
+    return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng,display:a[0].display_name||q}:null;
+  }
+
+  async function geocodeAddress(address,title=''){
+    if(!address?.trim()&&!title?.trim())return null;
+    const raw=(address||'').trim();
+    const clean=raw.replace(/〒?\s*\d{3}-?\d{4}/g,' ').replace(/\s+/g,' ').trim();
+    const t=(title||'').trim();
+    const tripName=(trip()?.name||'').trim();
+    const cc=countryHint();
+    const queries=[raw,clean,t&&`${t} ${tripName}`,t,clean&&`${clean} ${tripName}`].filter(Boolean);
     try{
-      const q=encodeURIComponent(`${address.trim()} ${trip()?.name||''}`.trim());
-      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${q}`,{cache:'no-store',headers:{'Accept-Language':'zh-TW'}});
-      if(!r.ok)throw new Error('geocode '+r.status);
-      const a=await r.json();if(!a?.[0])return null;
-      const lat=Number(a[0].lat),lng=Number(a[0].lon);
-      return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null;
+      for(const q of [...new Set(queries)]){
+        let found=await nominatimSearch(q,cc);
+        if(found)return found;
+        if(cc){found=await nominatimSearch(q,'');if(found)return found;}
+      }
+      return null;
     }catch(e){console.warn('address geocode failed',e);return null}
   }
 
@@ -46,10 +72,12 @@
     if(!editingId)return;const arr=trip().itinerary[curDate]||[],item=arr.find(x=>x.id===editingId);if(!item)return;
     const title=$('editItemTitle').value.trim();if(!title)return alert('請輸入行程名稱');
     const address=$('editItemAddress').value.trim();let lat=parseFloat($('editItemLat').value),lng=parseFloat($('editItemLng').value),found=null;
-    if(address)found=await geocodeAddress(address);if(found){lat=found.lat;lng=found.lng}
+    const saveBtn=document.querySelector('#itemEditModal .btn:not(.alt)');if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='定位中…'}
+    if(address||title)found=await geocodeAddress(address,title);
+    if(found){lat=found.lat;lng=found.lng;$('editItemLat').value=lat;$('editItemLng').value=lng;}
     item.time=$('editItemTime').value||'10:00';item.title=title;item.type=$('editItemType').value;item.note=$('editItemNote').value.trim();item.address=address;item.lat=Number.isFinite(lat)?lat:null;item.lng=Number.isFinite(lng)?lng:null;
     arr.sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));closeItemEditor();save();
-    if(address&&!found)alert('這個地址目前找不到座標，已保留原本／手動填寫的經緯度。');
+    if(address&&!found&&!Number.isFinite(lat))alert('仍找不到這個地址。可以改填「地點名稱」，例如 17END、下地島機場、札幌站；或手動填經緯度。');
   };
 
   const emergency={jp:{name:'日本',police:'110',fire:'119',ambulance:'119',extras:['JNTO 旅客熱線 050-3816-2787']},kr:{name:'韓國',police:'112',fire:'119',ambulance:'119',extras:['韓國旅遊諮詢 1330']},tw:{name:'台灣',police:'110',fire:'119',ambulance:'119',extras:['外來人士服務專線 1990']},us:{name:'美國',police:'911',fire:'911',ambulance:'911',extras:[]},ca:{name:'加拿大',police:'911',fire:'911',ambulance:'911',extras:[]},gb:{name:'英國',police:'999 / 112',fire:'999 / 112',ambulance:'999 / 112',extras:[]},fr:{name:'法國',police:'17 / 112',fire:'18 / 112',ambulance:'15 / 112',extras:[]},de:{name:'德國',police:'110',fire:'112',ambulance:'112',extras:[]},it:{name:'義大利',police:'112',fire:'112',ambulance:'112',extras:[]},es:{name:'西班牙',police:'112',fire:'112',ambulance:'112',extras:[]},is:{name:'冰島',police:'112',fire:'112',ambulance:'112',extras:[]},au:{name:'澳洲',police:'000',fire:'000',ambulance:'000',extras:[]},nz:{name:'紐西蘭',police:'111',fire:'111',ambulance:'111',extras:[]},sg:{name:'新加坡',police:'999',fire:'995',ambulance:'995',extras:[]},th:{name:'泰國',police:'191',fire:'199',ambulance:'1669',extras:['觀光警察 1155']},my:{name:'馬來西亞',police:'999',fire:'999',ambulance:'999',extras:[]},ph:{name:'菲律賓',police:'911',fire:'911',ambulance:'911',extras:[]},vn:{name:'越南',police:'113',fire:'114',ambulance:'115',extras:[]},hk:{name:'香港',police:'999',fire:'999',ambulance:'999',extras:[]},mo:{name:'澳門',police:'999',fire:'999',ambulance:'999',extras:[]}};
