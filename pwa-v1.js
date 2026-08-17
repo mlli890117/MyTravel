@@ -1,7 +1,9 @@
-/* My Travel PWA + Web Push registration v3 */
+/* My Travel PWA + Web Push registration v4 */
 (() => {
   const $=id=>document.getElementById(id);
   const CFG='myTravel_supabase';
+  const SUPABASE_URL='https://smgtefydmwoqovhldgvp.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY='sb_publishable_GFTHhoVfOHP2edTUSRJa3A_hnevKBeH';
   const VAPID_PUBLIC_KEY='BDk-gatnAmKJW-X_OaJz2GeZb5FWNOzt0l6Lf-HDpE2cRZakLVkaSVwxAmjwp9TolooDGcUeNDKgx7ud3MsTQSg';
   let deferredInstallPrompt=null;
   let pushBusy=false;
@@ -9,7 +11,6 @@
   function isStandalone(){return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone===true}
   function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)}
   function platform(){if(isIOS())return 'ios';if(/android/i.test(navigator.userAgent))return 'android';if(/windows/i.test(navigator.userAgent))return 'windows';if(/mac/i.test(navigator.userAgent))return 'macos';return 'web'}
-  function cloudConfig(){try{return JSON.parse(localStorage.getItem(CFG)||'null')}catch(_){return null}}
   function base64UrlToUint8Array(v){const p='='.repeat((4-v.length%4)%4),b=(v+p).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(b);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
 
   async function registerSW(){
@@ -26,14 +27,37 @@
   async function getExistingSubscription(){try{if(!('serviceWorker' in navigator))return null;return await (await swRegistration()).pushManager.getSubscription()}catch(_){return null}}
 
   async function saveSubscription(sub){
-    const cfg=cloudConfig();
-    if(!cfg?.url||!cfg?.key)throw new Error('請先在「雲端同步」儲存 Supabase URL 與 Key');
-    if(!window.supabase?.createClient)throw new Error('Supabase 尚未載入');
-    const client=window.supabase.createClient(cfg.url,cfg.key);
     const json=sub.toJSON();
-    const row={endpoint:sub.endpoint,p256dh:json.keys?.p256dh||'',auth:json.keys?.auth||'',device_name:isIOS()?'iPhone / iPad':platform(),platform:platform(),user_agent:navigator.userAgent,enabled:true,last_seen_at:new Date().toISOString()};
-    const {error}=await client.from('push_subscriptions').upsert(row,{onConflict:'endpoint'});
-    if(error)throw error;
+    const row={
+      endpoint:sub.endpoint,
+      p256dh:json.keys?.p256dh||'',
+      auth:json.keys?.auth||'',
+      device_name:isIOS()?'iPhone / iPad':platform(),
+      platform:platform(),
+      user_agent:navigator.userAgent,
+      enabled:true,
+      last_seen_at:new Date().toISOString()
+    };
+
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?on_conflict=endpoint`,{
+      method:'POST',
+      headers:{
+        'apikey':SUPABASE_PUBLISHABLE_KEY,
+        'Authorization':`Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type':'application/json',
+        'Prefer':'resolution=merge-duplicates,return=representation'
+      },
+      body:JSON.stringify(row)
+    });
+
+    if(!res.ok){
+      let detail='';
+      try{detail=await res.text()}catch(_){ }
+      console.error('Push subscription save failed',res.status,detail);
+      throw new Error(`Push Subscription 寫入 Supabase 失敗 (${res.status})${detail?`：${detail}`:''}`);
+    }
+
+    try{return await res.json()}catch(_){return null}
   }
 
   async function renderCard(){
@@ -48,11 +72,21 @@
     let notifyAction='';
     if(permission==='unsupported')notifyAction='<div class="muted">此瀏覽器不支援系統通知</div>';
     else if(permission==='denied')notifyAction='<div class="note" style="margin-top:10px">通知權限已被拒絕，請到 iPhone「設定 → 通知 → My Travel」重新允許。</div>';
-    else if(permission==='granted'&&sub)notifyAction='<div class="good setting" style="margin-top:10px">✅ 此裝置已建立 Push Subscription</div>';
+    else if(permission==='granted'&&sub)notifyAction='<div class="good setting" style="margin-top:10px">✅ 此裝置已建立 Push Subscription</div><button class="btn alt" style="margin-top:10px" type="button" onclick="syncMyTravelPush()">↻ 同步此裝置到雲端</button>';
     else notifyAction='<button class="btn" style="margin-top:10px" type="button" onclick="enableMyTravelPush()">🔔 完成裝置註冊</button>';
     const notifyText=permission==='granted'?(sub?'已開啟・此裝置已註冊':'已允許・尚未註冊'):permission==='denied'?'已拒絕':'尚未允許';
     card.innerHTML=`<div class="row between" style="align-items:flex-start;flex-wrap:wrap"><div><h2 style="margin-bottom:5px">📱 App 與通知</h2><div class="muted">將 My Travel 加到主畫面，並讓這台裝置接收旅行提醒。</div></div>${action}</div><div class="grid g2" style="margin-top:12px"><div class="setting"><b>App 模式</b><div class="muted">${standalone?'✅ 已使用獨立 App 模式':'瀏覽器模式'}</div></div><div class="setting"><b>系統通知</b><div class="muted">${notifyText}</div>${notifyAction}</div></div>${isIOS()&&!standalone?'<div class="note" style="margin-top:10px">iPhone：Safari → 分享 →「加入主畫面」。加入後請從主畫面的 My Travel 開啟，再允許通知。</div>':''}`;
   }
+
+  window.syncMyTravelPush=async function(){
+    if(pushBusy)return;pushBusy=true;
+    try{
+      const sub=await getExistingSubscription();
+      if(!sub)throw new Error('這台裝置目前沒有 Push Subscription，請重新完成裝置註冊。');
+      await saveSubscription(sub);
+      alert('此裝置已成功同步到 Supabase。');
+    }catch(e){alert(e?.message||String(e))}finally{pushBusy=false}
+  };
 
   window.enableMyTravelPush=async function(){
     if(pushBusy)return;pushBusy=true;
