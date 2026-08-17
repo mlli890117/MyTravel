@@ -68,4 +68,5 @@
   ensureModal();ensureAddAddress();
   setInterval(decorateFlightNumbers,1000);
   const s=document.createElement('script');s.src='./final-fixes.js?v=16';s.defer=true;document.body.appendChild(s);
+  const n=document.createElement('script');n.src='./notifications-v1.js?v=2';n.defer=true;document.body.appendChild(n);
 })();
