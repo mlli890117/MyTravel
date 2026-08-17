@@ -1,7 +1,8 @@
-/* My Travel PWA + Web Push registration v2 */
+/* My Travel PWA + Web Push registration v3 */
 (() => {
   const $=id=>document.getElementById(id);
   const CFG='myTravel_supabase';
+  const VAPID_PUBLIC_KEY='BDk-gatnAmKJW-X_OaJz2GeZb5FWNOzt0l6Lf-HDpE2cRZakLVkaSVwxAmjwp9TolooDGcUeNDKgx7ud3MsTQSg';
   let deferredInstallPrompt=null;
   let pushBusy=false;
 
@@ -10,7 +11,6 @@
   function platform(){if(isIOS())return 'ios';if(/android/i.test(navigator.userAgent))return 'android';if(/windows/i.test(navigator.userAgent))return 'windows';if(/mac/i.test(navigator.userAgent))return 'macos';return 'web'}
   function cloudConfig(){try{return JSON.parse(localStorage.getItem(CFG)||'null')}catch(_){return null}}
   function base64UrlToUint8Array(v){const p='='.repeat((4-v.length%4)%4),b=(v+p).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(b);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
-  function arrayBufferToBase64Url(buf){let s='';new Uint8Array(buf).forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 
   async function registerSW(){
     if(!('serviceWorker' in navigator)||!window.isSecureContext)return null;
@@ -49,7 +49,7 @@
     if(permission==='unsupported')notifyAction='<div class="muted">此瀏覽器不支援系統通知</div>';
     else if(permission==='denied')notifyAction='<div class="note" style="margin-top:10px">通知權限已被拒絕，請到 iPhone「設定 → 通知 → My Travel」重新允許。</div>';
     else if(permission==='granted'&&sub)notifyAction='<div class="good setting" style="margin-top:10px">✅ 此裝置已建立 Push Subscription</div>';
-    else notifyAction='<button class="btn" style="margin-top:10px" type="button" onclick="enableMyTravelPush()">🔔 開啟系統通知</button>';
+    else notifyAction='<button class="btn" style="margin-top:10px" type="button" onclick="enableMyTravelPush()">🔔 完成裝置註冊</button>';
     const notifyText=permission==='granted'?(sub?'已開啟・此裝置已註冊':'已允許・尚未註冊'):permission==='denied'?'已拒絕':'尚未允許';
     card.innerHTML=`<div class="row between" style="align-items:flex-start;flex-wrap:wrap"><div><h2 style="margin-bottom:5px">📱 App 與通知</h2><div class="muted">將 My Travel 加到主畫面，並讓這台裝置接收旅行提醒。</div></div>${action}</div><div class="grid g2" style="margin-top:12px"><div class="setting"><b>App 模式</b><div class="muted">${standalone?'✅ 已使用獨立 App 模式':'瀏覽器模式'}</div></div><div class="setting"><b>系統通知</b><div class="muted">${notifyText}</div>${notifyAction}</div></div>${isIOS()&&!standalone?'<div class="note" style="margin-top:10px">iPhone：Safari → 分享 →「加入主畫面」。加入後請從主畫面的 My Travel 開啟，再允許通知。</div>':''}`;
   }
@@ -63,11 +63,7 @@
       if(permission!=='granted')throw new Error('你尚未允許 My Travel 傳送通知');
       const reg=await swRegistration();
       let sub=await reg.pushManager.getSubscription();
-      if(!sub){
-        const vapid=(window.MY_TRAVEL_VAPID_PUBLIC_KEY||localStorage.getItem('myTravel_vapid_public')||'').trim();
-        if(!vapid)throw new Error('通知權限已允許，但尚未設定 VAPID Public Key。下一步設定後即可完成裝置註冊。');
-        sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64UrlToUint8Array(vapid)});
-      }
+      if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64UrlToUint8Array(VAPID_PUBLIC_KEY)});
       await saveSubscription(sub);
       try{await reg.showNotification('My Travel 通知已開啟',{body:'這台裝置已完成旅行提醒註冊。',icon:'./icon.svg',badge:'./icon.svg',tag:'push-ready'})}catch(_){ }
       await renderCard();
