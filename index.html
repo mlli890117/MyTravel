@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>My Travel</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+ --bg:#f7f8fb;--card:#fff;--ink:#18212f;--muted:#6b7280;--line:#e5e7eb;
+ --brand:#0f766e;--brand2:#ecfdf5;--nav:#0f172a;--warn:#9a6700;--danger:#b42318;
+ --shadow:0 10px 30px rgba(15,23,42,.08);--r:18px
+}
+*{box-sizing:border-box} html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.side{background:var(--nav);color:#fff;padding:24px 18px;position:sticky;top:0;height:100vh}
+.brand{font-size:22px;font-weight:900}.brand-sub{color:#94a3b8;font-size:12px;margin-top:4px;margin-bottom:20px}
+.nav button{display:block;width:100%;border:0;background:transparent;color:#cbd5e1;padding:12px 13px;border-radius:12px;text-align:left;margin:3px 0}
+.nav button.active,.nav button:hover{background:#1e293b;color:#fff}
+.main{padding:26px;max-width:1450px;width:100%;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.top h1{margin:0;font-size:28px}.status{font-size:12px;padding:7px 10px;border-radius:999px;background:#eef2ff;color:#3949ab;font-weight:700}
+.page{display:none}.page.active{display:block}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:17px;box-shadow:var(--shadow)}
+.card h2,.card h3{margin:0 0 12px}.muted{color:var(--muted);font-size:13px}
+.btn{border:0;background:var(--brand);color:white;padding:9px 12px;border-radius:10px;font-weight:800}.btn.alt{background:#eef2f7;color:#344054}.btn.red{background:#fff1f0;color:var(--danger)}.btn.sm{padding:6px 9px;font-size:12px}
+.hero{border-radius:24px;padding:24px;background:linear-gradient(135deg,#0f172a,#0f766e);color:#fff;display:grid;grid-template-columns:1.2fr .8fr;gap:20px}
+.hero h2{font-size:30px;margin:0 0 8px}.hero .muted{color:#d1fae5}.count{font-size:52px;font-weight:900;text-align:right}
+.tripcards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.tripcard{border:1px solid var(--line);border-radius:20px;background:white;padding:18px;box-shadow:var(--shadow)}
+.tripcard h3{font-size:22px;margin:6px 0}.pill{display:inline-block;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;background:var(--brand2);color:var(--brand)}
+.row{display:flex;align-items:center;gap:8px}.between{justify-content:space-between}
+input,select,textarea{width:100%;border:1px solid #d8dee9;border-radius:10px;padding:9px 10px;background:#fff;color:var(--ink)}
+.form{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.wide{grid-column:span 2}
+.tabs{display:flex;gap:7px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#fff;padding:8px 10px;border-radius:11px}.tab.active{background:var(--brand2);border-color:#a7f3d0;color:var(--brand);font-weight:800}
+.timeline{display:flex;flex-direction:column;gap:9px}.item{display:grid;grid-template-columns:70px 1fr auto;gap:10px;padding:11px;border:1px solid var(--line);border-radius:13px;background:white}.time{font-weight:900}.title{font-weight:800}.meta{font-size:12px;color:var(--muted);margin-top:4px}
+.itlayout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:16px}.mapwrap{position:sticky;top:18px}#map{height:460px;border-radius:14px}
+.recgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.rec{border:1px solid var(--line);border-radius:12px;padding:10px}
+.check{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line)}.check input[type=checkbox]{width:auto}.done span{text-decoration:line-through;color:#9ca3af}
+table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}th{color:#64748b}
+.note{padding:12px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#854d0e}.good{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+.setting{padding:12px;border:1px solid var(--line);border-radius:12px;margin-top:10px}
+.bottomnav{display:none}
+@media(max-width:980px){
+ .app{grid-template-columns:1fr}.side{display:none}.main{padding:16px 14px 86px}.g4,.g3{grid-template-columns:repeat(2,1fr)}.itlayout{grid-template-columns:1fr}.mapwrap{position:relative}
+ .bottomnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:1000;padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+ .bottomnav button{border:0;background:transparent;font-size:11px;color:#64748b;padding:6px 2px}.bottomnav button.active{color:var(--brand);font-weight:800}
+}
+@media(max-width:620px){
+ .top h1{font-size:22px}.hero{grid-template-columns:1fr}.count{text-align:left;font-size:42px}.tripcards,.g2,.g3,.g4{grid-template-columns:1fr}.form{grid-template-columns:1fr}.wide{grid-column:auto}.recgrid{grid-template-columns:1fr}.item{grid-template-columns:58px 1fr auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+ <div class="brand">My Travel</div>
+ <div class="brand-sub">Personal Trip Planner</div>
+ <div class="nav">
+  <button class="active" data-page="home">🏠 首頁</button>
+  <button data-page="itinerary">🗓 行程</button>
+  <button data-page="mapPage">🗺 地圖</button>
+  <button data-page="money">💴 記帳</button>
+  <button data-page="more">☰ 更多</button>
+ </div>
+</aside>
+
+<main class="main">
+<div class="top"><h1 id="pageTitle">我的旅行</h1><div class="status" id="syncStatus">本機模式</div></div>
+
+<section class="page active" id="home">
+ <div class="hero">
+  <div><div class="pill" style="background:rgba(255,255,255,.12);color:#fff">MY TRAVEL</div><h2>下一趟旅行</h2><div id="nextTripName" style="font-size:22px;font-weight:900;margin-top:8px">—</div><div class="muted" id="nextTripDates">—</div></div>
+  <div><div class="muted">距離出發</div><div class="count" id="daysLeft">—</div><div class="muted">天</div></div>
+ </div>
+ <div class="tripcards" id="tripCards"></div>
+</section>
+
+<section class="page" id="itinerary">
+ <div class="card">
+  <div class="row between"><div><h2 id="tripTitle">行程</h2><div class="muted" id="tripRange"></div></div><select id="tripSelect" style="width:210px"></select></div>
+  <div class="tabs" id="dayTabs" style="margin-top:14px"></div>
+ </div>
+ <div class="itlayout" style="margin-top:16px">
+  <div>
+   <div class="card">
+    <div class="row between"><div><h3 id="dayTitle">—</h3><div class="muted" id="dayArea"></div></div><button class="btn" onclick="toggleAdd(true)">＋新增</button></div>
+    <div id="addBox" class="setting" style="display:none">
+     <div class="form">
+      <div><div class="muted">時間</div><input id="iTime" type="time" value="10:00"></div>
+      <div class="wide"><div class="muted">名稱</div><input id="iTitle" placeholder="景點／餐廳／交通"></div>
+      <div><div class="muted">類型</div><select id="iType"><option>景點</option><option>餐廳</option><option>交通</option><option>住宿</option><option>購物</option><option>滑雪</option><option>其他</option></select></div>
+      <div class="wide"><div class="muted">備註</div><input id="iNote" placeholder="地址、預約資訊、提醒"></div>
+      <div><div class="muted">緯度</div><input id="iLat"></div><div><div class="muted">經度</div><input id="iLng"></div>
+     </div>
+     <div class="row" style="margin-top:9px"><button class="btn" onclick="addItem()">儲存</button><button class="btn alt" onclick="toggleAdd(false)">取消</button></div>
+    </div>
+    <div id="timeline" class="timeline" style="margin-top:12px"></div>
+   </div>
+   <div class="card" style="margin-top:16px"><div class="row between"><h3>附近推薦</h3><span class="muted">一鍵加入</span></div><div id="recGrid" class="recgrid"></div></div>
+  </div>
+  <div class="mapwrap"><div class="card"><div class="row between"><h3>地圖</h3><button class="btn sm alt" onclick="fitMap()">顯示全部</button></div><div id="map"></div><div class="muted" style="margin-top:8px">點行程或推薦景點即可定位。</div></div></div>
+ </div>
+</section>
+
+<section class="page" id="mapPage">
+ <div class="card"><div class="row between"><div><h2>旅行地圖</h2><div class="muted">切換旅行後顯示所有已排景點</div></div><select id="mapTripSelect" style="width:210px"></select></div><div id="bigMap" style="height:65vh;border-radius:14px;margin-top:14px"></div></div>
+</section>
+
+<section class="page" id="money">
+ <div class="grid g4">
+  <div class="card"><div class="muted">總支出 JPY</div><div style="font-size:26px;font-weight:900" id="sumJPY">¥0</div></div>
+  <div class="card"><div class="muted">約合 TWD</div><div style="font-size:26px;font-weight:900" id="sumTWD">NT$0</div></div>
+  <div class="card"><div class="muted">筆數</div><div style="font-size:26px;font-weight:900" id="sumCount">0</div></div>
+  <div class="card"><div class="muted">換算匯率</div><input id="rate" type="number" step="0.001" value="0.22" onchange="setRate()"></div>
+ </div>
+ <div class="card" style="margin-top:16px">
+  <div class="form">
+   <div><input id="eDate" type="date"></div><div><select id="eCat"><option>餐飲</option><option>交通</option><option>住宿</option><option>購物</option><option>票券</option><option>雪具</option><option>其他</option></select></div>
+   <div><input id="eName" placeholder="支出名稱"></div><div><input id="eAmount" type="number" placeholder="JPY"></div>
+  </div><button class="btn" style="margin-top:9px" onclick="addExpense()">新增支出</button>
+  <div style="overflow:auto;margin-top:12px"><table><thead><tr><th>旅行</th><th>日期</th><th>分類</th><th>項目</th><th>JPY</th><th>TWD</th><th></th></tr></thead><tbody id="expenseRows"></tbody></table></div>
+ </div>
+</section>
+
+<section class="page" id="more">
+ <div class="grid g2">
+  <div class="card"><div class="row between"><h2>行前清單</h2><select id="checkTripSelect" style="width:180px"></select></div><div class="row" style="margin-top:8px"><input id="checkInput" placeholder="新增待辦"><button class="btn" onclick="addCheck()">新增</button></div><div id="checkRows" style="margin-top:10px"></div></div>
+  <div class="card"><div class="row between"><h2>購物清單</h2><select id="shopTripSelect" style="width:180px"></select></div><div class="row" style="margin-top:8px"><input id="shopInput" placeholder="新增購物品項"><button class="btn" onclick="addShop()">新增</button></div><div id="shopRows" style="margin-top:10px"></div></div>
+  <div class="card"><h2>航班／住宿</h2><div id="bookingInfo"></div></div>
+  <div class="card"><h2>日本緊急聯絡</h2><div class="setting"><b>警察 110</b><div class="muted">Police</div></div><div class="setting"><b>消防／救護 119</b><div class="muted">Fire / Ambulance</div></div><div class="setting"><b>JNTO 旅客熱線 050-3816-2787</b><div class="muted">全年 24 小時，支援中文等語言</div></div></div>
+ </div>
+ <div class="card" style="margin-top:16px">
+  <h2>雲端同步</h2>
+  <div class="note" id="cloudNote">目前使用本機模式。要讓電腦與手機共用資料，建立 Supabase 專案後，把 Project URL 與 anon key 貼到下面即可。</div>
+  <div class="form" style="margin-top:10px">
+   <div class="wide"><div class="muted">Supabase Project URL</div><input id="sbUrl" placeholder="https://xxxx.supabase.co"></div>
+   <div class="wide"><div class="muted">Supabase anon key</div><input id="sbKey" placeholder="eyJ..."></div>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="btn" onclick="saveCloudConfig()">儲存並連線</button><button class="btn alt" onclick="syncNow()">立即同步</button><button class="btn red" onclick="clearCloudConfig()">回到本機模式</button></div>
+  <div class="muted" style="margin-top:8px">首次連線前，請先在 Supabase SQL Editor 執行隨附的 supabase.sql。</div>
+ </div>
+ <div class="card" style="margin-top:16px"><h2>安裝到手機主畫面</h2><div class="muted">iPhone：Safari → 分享 → 加入主畫面。Android：Chrome → 安裝應用程式。之後可像 App 一樣開啟。</div></div>
+</section>
+</main>
+</div>
+
+<div class="bottomnav">
+ <button class="active" data-page="home">🏠<br>首頁</button><button data-page="itinerary">🗓<br>行程</button><button data-page="mapPage">🗺<br>地圖</button><button data-page="money">💴<br>記帳</button><button data-page="more">☰<br>更多</button>
+</div>
+
+<script>
+const LS='myTravel_v1', CFG='myTravel_supabase';
+const seed={
+ rate:0.22,
+ trips:[
+  {id:'miyako2026',name:'宮古島',emoji:'🌴',start:'2026-11-11',end:'2026-11-14',theme:'悠閒自駕＋海景＋咖啡廳',
+   center:[24.8055,125.2811],
+   flights:[{dir:'去程',date:'2026-11-11',route:'台灣 → 宮古島',time:'約 13:00 抵達'},{dir:'回程',date:'2026-11-14',route:'宮古島 → 台灣',time:'約 14:00 起飛'}],
+   hotels:[{name:'Watermark Hotel & Resorts Okinawa Miyakojima',from:'2026-11-11',to:'2026-11-14',note:'3 晚'}],
+   itinerary:{
+    '2026-11-11':[
+     {id:'m1',time:'13:00',title:'抵達宮古島',type:'交通',note:'取行李、辦理租車',lat:24.7828,lng:125.2951},
+     {id:'m2',time:'14:00',title:'租車取車',type:'交通',note:'確認保險、油種、還車方式',lat:24.7828,lng:125.2951},
+     {id:'m3',time:'15:30',title:'飯店 Check-in',type:'住宿',note:'Watermark Hotel & Resorts Okinawa Miyakojima',lat:24.827,lng:125.138},
+     {id:'m4',time:'18:30',title:'宮古牛燒肉',type:'餐廳',note:'晚餐店家可再補',lat:24.8055,lng:125.2811}
+    ],
+    '2026-11-12':[
+     {id:'m5',time:'10:00',title:'伊良部大橋',type:'景點',note:'悠閒自駕看海',lat:24.8108,lng:125.214},
+     {id:'m6',time:'11:00',title:'牧山展望台',type:'景點',note:'看伊良部大橋',lat:24.837,lng:125.1926},
+     {id:'m7',time:'13:30',title:'17END',type:'景點',note:'依天氣彈性停留',lat:24.826,lng:125.13},
+     {id:'m8',time:'16:00',title:'咖啡廳時間',type:'餐廳',note:'不趕行程',lat:24.8267,lng:125.1758}
+    ],
+    '2026-11-13':[
+     {id:'m9',time:'10:00',title:'與那霸前濱海灘',type:'景點',note:'散步看海',lat:24.7354,lng:125.2635},
+     {id:'m10',time:'11:30',title:'來間大橋',type:'景點',note:'自駕過橋',lat:24.7282,lng:125.257},
+     {id:'m11',time:'12:00',title:'龍宮城展望台',type:'景點',note:'俯瞰海景',lat:24.724,lng:125.2503},
+     {id:'m12',time:'14:00',title:'咖啡廳',type:'餐廳',note:'下午留白',lat:24.725,lng:125.247}
+    ],
+    '2026-11-14':[
+     {id:'m13',time:'09:00',title:'早餐／附近散步',type:'景點',note:'最後一天不排遠',lat:24.827,lng:125.138},
+     {id:'m14',time:'11:00',title:'加油／還車',type:'交通',note:'預留接駁時間',lat:24.7828,lng:125.2951},
+     {id:'m15',time:'14:00',title:'宮古島起飛回台灣',type:'交通',note:'提早到機場',lat:24.7828,lng:125.2951}
+    ]},
+   checks:[
+    {id:'mc1',name:'確認護照效期',done:false},{id:'mc2',name:'預約宮古島租車',done:false},{id:'mc3',name:'準備台灣駕照＋日文譯本',done:false},
+    {id:'mc4',name:'確認旅遊保險',done:false},{id:'mc5',name:'準備 eSIM／網卡',done:false},{id:'mc6',name:'確認租車加油與還車規則',done:false}
+   ],
+   shops:[{id:'ms1',name:'雪鹽／宮古島伴手禮',done:false},{id:'ms2',name:'沖繩限定零食',done:false},{id:'ms3',name:'在地咖啡／食品',done:false}]
+  },
+  {id:'hokkaido2027',name:'北海道',emoji:'⛷️',start:'2027-02-18',end:'2027-03-05',theme:'札幌採買＋近郊滑雪＋二世古',
+   center:[43.0618,141.3545],
+   flights:[{dir:'去程',date:'2027-02-18',route:'台灣 → 北海道',time:'待填'},{dir:'回程',date:'2027-03-05',route:'北海道 → 台灣',time:'待填'}],
+   hotels:[{name:'札幌住宿',from:'2027-02-18',to:'2027-02-24',note:'待補實際飯店'},{name:'Lodge Koropokkuru',from:'2027-02-24',to:'2027-02-28',note:'已預訂'}],
+   itinerary:{
+    '2027-02-18':[{id:'h1',time:'15:00',title:'抵達札幌／Check-in',type:'交通',note:'先放行李',lat:43.0618,lng:141.3545}],
+    '2027-02-19':[{id:'h2',time:'10:30',title:'札幌雪具店採買',type:'購物',note:'雪板／固定器／雪鞋',lat:43.0618,lng:141.3545}],
+    '2027-02-20':[{id:'h3',time:'08:00',title:'札幌近郊滑雪',type:'滑雪',note:'依雪況決定',lat:43.072,lng:141.0825}],
+    '2027-02-21':[{id:'h4',time:'09:00',title:'札幌近郊滑雪／自由安排',type:'滑雪',note:'手稻／札幌國際／休息日',lat:43.0804,lng:141.1986}],
+    '2027-02-22':[],
+    '2027-02-23':[{id:'h5',time:'18:00',title:'整理雪具與二世古行李',type:'其他',note:'確認隔日交通',lat:43.0618,lng:141.3545}],
+    '2027-02-24':[{id:'h6',time:'09:00',title:'札幌 → 二世古',type:'交通',note:'朋友會合',lat:42.8048,lng:140.6874},{id:'h7',time:'15:00',title:'Lodge Koropokkuru Check-in',type:'住宿',note:'已預訂',lat:42.8635,lng:140.704}],
+    '2027-02-25':[{id:'h8',time:'08:30',title:'二世古滑雪',type:'滑雪',note:'Annupuri / Hirafu / Village',lat:42.8487,lng:140.6488}],
+    '2027-02-26':[{id:'h9',time:'08:30',title:'二世古滑雪',type:'滑雪',note:'全天滑雪',lat:42.8647,lng:140.7006}],
+    '2027-02-27':[{id:'h10',time:'08:30',title:'二世古滑雪',type:'滑雪',note:'依退房日程調整',lat:42.8487,lng:140.6488}],
+    '2027-02-28':[],'2027-03-01':[],'2027-03-02':[],'2027-03-03':[],'2027-03-04':[],'2027-03-05':[]
+   },
+   checks:[
+    {id:'hc1',name:'確認護照效期',done:false},{id:'hc2',name:'確認航班與行李額度',done:false},{id:'hc3',name:'預約札幌 → 二世古交通',done:false},
+    {id:'hc4',name:'確認滑雪／特殊運動保險',done:false},{id:'hc5',name:'準備雪具大行李運送方案',done:false},{id:'hc6',name:'準備 eSIM／網卡',done:false}
+   ],
+   shops:[{id:'hs1',name:'雪具／裝備',done:false},{id:'hs2',name:'雪具托運保護用品',done:false},{id:'hs3',name:'北海道伴手禮',done:false}]
+  }],
+ expenses:[]
+};
+const recs={
+ miyako2026:[
+  {name:'砂山海灘',note:'市區北側人氣海灘',lat:24.8436,lng:125.2782},{name:'宮古神社',note:'市區散步可順遊',lat:24.8076,lng:125.2768},
+  {name:'島之驛宮古',note:'伴手禮與簡單餐飲',lat:24.7934,lng:125.2938},{name:'雪鹽博物館',note:'伴手禮候選',lat:24.8992,lng:125.2798},
+  {name:'通池',note:'伊良部島自然景觀',lat:24.8427,lng:125.117},{name:'佐和田之濱',note:'夕陽與散步',lat:24.8457,lng:125.1454}
+ ],
+ hokkaido2027:[
+  {name:'大通公園',note:'札幌市中心散步',lat:43.0605,lng:141.3475},{name:'狸小路商店街',note:'藥妝與採買',lat:43.057,lng:141.3512},
+  {name:'北海道神宮',note:'冬季雪景',lat:43.0544,lng:141.3074},{name:'札幌國際滑雪場',note:'近郊滑雪',lat:43.072,lng:141.0825},
+  {name:'Niseko Annupuri',note:'二世古主力雪場',lat:42.8487,lng:140.6488},{name:'Grand Hirafu',note:'餐飲與雪場機能完整',lat:42.8647,lng:140.7006}
+ ]
+};
+let state=JSON.parse(localStorage.getItem(LS)||'null')||seed;
+let curTrip=state.trips[0].id, curDate=state.trips[0].start, map, bigMap, markers=[],bigMarkers=[], sb=null;
+
+function saveLocal(){localStorage.setItem(LS,JSON.stringify(state));renderHome(); if(sb) debounceSync()}
+let syncTimer; function debounceSync(){clearTimeout(syncTimer);syncTimer=setTimeout(pushCloud,700)}
+function fmt(d){const x=new Date(d+'T00:00:00');return `${x.getMonth()+1}/${x.getDate()}（${'日一二三四五六'[x.getDay()]}）`}
+function dates(a,b){let out=[],d=new Date(a+'T00:00:00'),e=new Date(b+'T00:00:00');while(d<=e){out.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}return out}
+function trip(){return state.trips.find(x=>x.id===curTrip)}
+function page(id){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');
+ document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
+ const names={home:'我的旅行',itinerary:'行程',mapPage:'旅行地圖',money:'旅行記帳',more:'更多'};document.getElementById('pageTitle').textContent=names[id];
+ if(id==='itinerary')setTimeout(()=>map.invalidateSize(),100); if(id==='mapPage'){setTimeout(()=>bigMap.invalidateSize(),100);renderBigMap()}
+}
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>page(b.dataset.page));
+
+function renderHome(){
+ const now=new Date(); now.setHours(0,0,0,0); const upcoming=[...state.trips].sort((a,b)=>a.start.localeCompare(b.start)).find(t=>new Date(t.end+'T23:59:59')>=now)||state.trips[0];
+ document.getElementById('nextTripName').textContent=`${upcoming.emoji} ${upcoming.name}`;document.getElementById('nextTripDates').textContent=`${upcoming.start} ～ ${upcoming.end} · ${upcoming.theme}`;
+ document.getElementById('daysLeft').textContent=Math.max(0,Math.ceil((new Date(upcoming.start+'T00:00:00')-now)/86400000));
+ const c=document.getElementById('tripCards');c.innerHTML='';
+ state.trips.forEach(t=>{const d=document.createElement('div');d.className='tripcard';const day=dates(t.start,t.end).length;d.innerHTML=`<span class="pill">${day} DAYS</span><h3>${t.emoji} ${t.name}</h3><div class="muted">${t.start} ～ ${t.end}</div><p>${t.theme}</p><button class="btn" onclick="openTrip('${t.id}')">打開旅行</button>`;c.appendChild(d)})
+}
+function openTrip(id){curTrip=id;curDate=trip().start;syncSelects();renderItinerary();page('itinerary')}
+function syncSelects(){
+ ['tripSelect','mapTripSelect','checkTripSelect','shopTripSelect'].forEach(id=>{const el=document.getElementById(id);el.innerHTML='';state.trips.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=`${t.emoji} ${t.name}`;el.appendChild(o)});el.value=curTrip});
+}
+function initMaps(){
+ map=L.map('map').setView(state.trips[0].center,11);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+ bigMap=L.map('bigMap').setView(state.trips[0].center,10);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(bigMap);
+}
+function renderItinerary(){
+ const t=trip();document.getElementById('tripTitle').textContent=`${t.emoji} ${t.name}`;document.getElementById('tripRange').textContent=`${t.start} ～ ${t.end} · ${t.theme}`;
+ const tabs=document.getElementById('dayTabs');tabs.innerHTML='';dates(t.start,t.end).forEach(d=>{const b=document.createElement('button');b.className='tab'+(d===curDate?' active':'');b.textContent=fmt(d);b.onclick=()=>{curDate=d;renderItinerary()};tabs.appendChild(b)});
+ document.getElementById('dayTitle').textContent=fmt(curDate);document.getElementById('dayArea').textContent=t.name;
+ const tl=document.getElementById('timeline');tl.innerHTML='';const arr=t.itinerary[curDate]||[];
+ if(!arr.length)tl.innerHTML='<div class="muted" style="padding:18px;text-align:center;border:1px dashed #d1d5db;border-radius:12px">這天還沒有行程，可以新增或從推薦加入。</div>';
+ arr.forEach(i=>{const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="time">${i.time||'—'}</div><div onclick="focus(${i.lat||'null'},${i.lng||'null'},'${esc(i.title)}')" style="cursor:pointer"><div class="title">${i.title}</div><div class="meta">${i.type}${i.note?' · '+i.note:''}</div></div><button class="btn sm red" onclick="delItem('${i.id}')">刪</button>`;tl.appendChild(d)});
+ renderRecs();renderMap();
+}
+function renderRecs(){const el=document.getElementById('recGrid');el.innerHTML='';(recs[curTrip]||[]).forEach(r=>{const d=document.createElement('div');d.className='rec';d.innerHTML=`<b>${r.name}</b><div class="muted">${r.note}</div><div class="row" style="margin-top:7px"><button class="btn sm" onclick="addRec('${esc(r.name)}','${esc(r.note)}',${r.lat},${r.lng})">＋加入</button><button class="btn sm alt" onclick="focus(${r.lat},${r.lng},'${esc(r.name)}')">地圖</button></div>`;el.appendChild(d)})}
+function renderMap(){markers.forEach(m=>map.removeLayer(m));markers=[];const t=trip(),arr=(t.itinerary[curDate]||[]).filter(x=>x.lat&&x.lng);arr.forEach(i=>{const m=L.marker([i.lat,i.lng]).addTo(map).bindPopup(`<b>${i.title}</b><br>${i.time||''} ${i.note||''}`);markers.push(m)});if(arr.length)fitMap();else map.setView(t.center,11)}
+function focus(lat,lng,name){if(!lat||!lng)return;map.setView([lat,lng],15);L.popup().setLatLng([lat,lng]).setContent(`<b>${name}</b>`).openOn(map)}
+function fitMap(){if(markers.length===1)map.setView(markers[0].getLatLng(),14);else if(markers.length>1)map.fitBounds(L.featureGroup(markers).getBounds().pad(.2))}
+function renderBigMap(){bigMarkers.forEach(m=>bigMap.removeLayer(m));bigMarkers=[];const t=trip();Object.values(t.itinerary).flat().filter(x=>x.lat&&x.lng).forEach(i=>{const m=L.marker([i.lat,i.lng]).addTo(bigMap).bindPopup(`<b>${i.title}</b><br>${i.note||''}`);bigMarkers.push(m)});if(bigMarkers.length)bigMap.fitBounds(L.featureGroup(bigMarkers).getBounds().pad(.15));else bigMap.setView(t.center,10)}
+function toggleAdd(v){document.getElementById('addBox').style.display=v?'block':'none'}
+function addItem(){const title=document.getElementById('iTitle').value.trim();if(!title)return alert('請輸入名稱');const t=trip();(t.itinerary[curDate]??=[]).push({id:crypto.randomUUID(),time:document.getElementById('iTime').value,title,type:document.getElementById('iType').value,note:document.getElementById('iNote').value.trim(),lat:parseFloat(document.getElementById('iLat').value)||null,lng:parseFloat(document.getElementById('iLng').value)||null});['iTitle','iNote','iLat','iLng'].forEach(id=>document.getElementById(id).value='');toggleAdd(false);saveLocal();renderItinerary()}
+function delItem(id){const t=trip();t.itinerary[curDate]=(t.itinerary[curDate]||[]).filter(x=>x.id!==id);saveLocal();renderItinerary()}
+function addRec(name,note,lat,lng){const t=trip();(t.itinerary[curDate]??=[]).push({id:crypto.randomUUID(),time:'10:00',title:name,type:'景點',note,lat,lng});saveLocal();renderItinerary()}
+function esc(s){return String(s).replaceAll("'","\\'")}
+
+function renderMoney(){const rows=document.getElementById('expenseRows');rows.innerHTML='';let sum=0;state.expenses.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{sum+=Number(e.amount);const t=state.trips.find(x=>x.id===e.tripId);const tr=document.createElement('tr');tr.innerHTML=`<td>${t?t.name:''}</td><td>${e.date}</td><td>${e.cat}</td><td>${e.name}</td><td>¥${Number(e.amount).toLocaleString()}</td><td>NT$${Math.round(e.amount*state.rate).toLocaleString()}</td><td><button class="btn sm red" onclick="delExpense('${e.id}')">刪</button></td>`;rows.appendChild(tr)});document.getElementById('sumJPY').textContent='¥'+sum.toLocaleString();document.getElementById('sumTWD').textContent='NT$'+Math.round(sum*state.rate).toLocaleString();document.getElementById('sumCount').textContent=state.expenses.length;document.getElementById('rate').value=state.rate;document.getElementById('eDate').value=trip().start}
+function addExpense(){const n=document.getElementById('eName').value.trim(),a=parseFloat(document.getElementById('eAmount').value);if(!n||!a)return alert('請輸入名稱與金額');state.expenses.push({id:crypto.randomUUID(),tripId:curTrip,date:document.getElementById('eDate').value,cat:document.getElementById('eCat').value,name:n,amount:a});document.getElementById('eName').value='';document.getElementById('eAmount').value='';saveLocal();renderMoney()}
+function delExpense(id){state.expenses=state.expenses.filter(x=>x.id!==id);saveLocal();renderMoney()} function setRate(){state.rate=parseFloat(document.getElementById('rate').value)||.22;saveLocal();renderMoney()}
+
+function renderMore(){renderChecks();renderShops();renderBooking()}
+function renderChecks(){const t=state.trips.find(x=>x.id===document.getElementById('checkTripSelect').value)||trip();const el=document.getElementById('checkRows');el.innerHTML='';t.checks.forEach(i=>{const d=document.createElement('div');d.className='check'+(i.done?' done':'');d.innerHTML=`<input type="checkbox" ${i.done?'checked':''} onchange="toggleCheck('${t.id}','${i.id}')"><span style="flex:1">${i.name}</span><button class="btn sm red" onclick="removeCheck('${t.id}','${i.id}')">刪</button>`;el.appendChild(d)})}
+function addCheck(){const n=document.getElementById('checkInput').value.trim();if(!n)return;const tid=document.getElementById('checkTripSelect').value,t=state.trips.find(x=>x.id===tid);t.checks.push({id:crypto.randomUUID(),name:n,done:false});document.getElementById('checkInput').value='';saveLocal();renderChecks()}
+function toggleCheck(tid,id){const i=state.trips.find(x=>x.id===tid).checks.find(x=>x.id===id);i.done=!i.done;saveLocal();renderChecks()} function removeCheck(tid,id){const t=state.trips.find(x=>x.id===tid);t.checks=t.checks.filter(x=>x.id!==id);saveLocal();renderChecks()}
+function renderShops(){const t=state.trips.find(x=>x.id===document.getElementById('shopTripSelect').value)||trip();const el=document.getElementById('shopRows');el.innerHTML='';t.shops.forEach(i=>{const d=document.createElement('div');d.className='check'+(i.done?' done':'');d.innerHTML=`<input type="checkbox" ${i.done?'checked':''} onchange="toggleShop('${t.id}','${i.id}')"><span style="flex:1">${i.name}</span><button class="btn sm red" onclick="removeShop('${t.id}','${i.id}')">刪</button>`;el.appendChild(d)})}
+function addShop(){const n=document.getElementById('shopInput').value.trim();if(!n)return;const tid=document.getElementById('shopTripSelect').value,t=state.trips.find(x=>x.id===tid);t.shops.push({id:crypto.randomUUID(),name:n,done:false});document.getElementById('shopInput').value='';saveLocal();renderShops()}
+function toggleShop(tid,id){const i=state.trips.find(x=>x.id===tid).shops.find(x=>x.id===id);i.done=!i.done;saveLocal();renderShops()} function removeShop(tid,id){const t=state.trips.find(x=>x.id===tid);t.shops=t.shops.filter(x=>x.id!==id);saveLocal();renderShops()}
+function renderBooking(){const t=trip(),el=document.getElementById('bookingInfo');el.innerHTML='<b>航班</b>';t.flights.forEach(f=>el.innerHTML+=`<div class="setting"><b>${f.dir}</b> · ${f.date}<div>${f.route}</div><div class="muted">${f.time}</div></div>`);el.innerHTML+='<div style="margin-top:12px"><b>住宿</b></div>';t.hotels.forEach(h=>el.innerHTML+=`<div class="setting"><b>${h.name}</b><div>${h.from} ～ ${h.to}</div><div class="muted">${h.note}</div></div>`)}
+
+document.getElementById('tripSelect').onchange=e=>{curTrip=e.target.value;curDate=trip().start;syncSelects();renderItinerary();renderMoney();renderMore()}
+document.getElementById('mapTripSelect').onchange=e=>{curTrip=e.target.value;curDate=trip().start;syncSelects();renderBigMap()}
+document.getElementById('checkTripSelect').onchange=renderChecks;document.getElementById('shopTripSelect').onchange=renderShops;
+
+function cloudCfg(){return JSON.parse(localStorage.getItem(CFG)||'null')}
+async function setupCloud(){
+ const c=cloudCfg();document.getElementById('sbUrl').value=c?.url||'';document.getElementById('sbKey').value=c?.key||'';
+ if(!c?.url||!c?.key)return;
+ try{sb=window.supabase.createClient(c.url,c.key);document.getElementById('syncStatus').textContent='雲端連線中';await pullCloud();document.getElementById('syncStatus').textContent='雲端同步';document.getElementById('cloudNote').className='note good';document.getElementById('cloudNote').textContent='已啟用雲端同步。手機與電腦只要填入相同 Supabase 設定，即可共用資料。'}catch(e){sb=null;document.getElementById('syncStatus').textContent='雲端連線失敗';console.error(e)}
+}
+async function saveCloudConfig(){const url=document.getElementById('sbUrl').value.trim(),key=document.getElementById('sbKey').value.trim();if(!url||!key)return alert('請填入 Supabase URL 與 anon key');localStorage.setItem(CFG,JSON.stringify({url,key}));await setupCloud();if(sb)await pushCloud()}
+function clearCloudConfig(){localStorage.removeItem(CFG);sb=null;document.getElementById('syncStatus').textContent='本機模式';document.getElementById('cloudNote').className='note';document.getElementById('cloudNote').textContent='目前使用本機模式。要讓電腦與手機共用資料，建立 Supabase 專案後，把 Project URL 與 anon key 貼到下面即可。'}
+async function pushCloud(){if(!sb)return;try{document.getElementById('syncStatus').textContent='同步中…';const {error}=await sb.from('travel_state').upsert({id:'default',payload:state,updated_at:new Date().toISOString()});if(error)throw error;document.getElementById('syncStatus').textContent='已同步'}catch(e){document.getElementById('syncStatus').textContent='同步失敗';console.error(e)}}
+async function pullCloud(){if(!sb)return;const {data,error}=await sb.from('travel_state').select('*').eq('id','default').maybeSingle();if(error)throw error;if(data?.payload){state=data.payload;localStorage.setItem(LS,JSON.stringify(state));curTrip=state.trips[0].id;curDate=state.trips[0].start;renderAll()}}
+async function syncNow(){if(!sb)return alert('請先設定 Supabase');await pullCloud();await pushCloud();alert('同步完成')}
+function renderAll(){syncSelects();renderHome();renderItinerary();renderMoney();renderMore()}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
+initMaps();renderAll();setupCloud();
+</script>
+</body>
+</html>
