@@ -102,10 +102,8 @@
     card.innerHTML=`<div class="row between"><div><h2 style="margin-bottom:4px">${e.name}緊急聯絡</h2><div class="muted">依目前旅行「${esc(t.name)}」自動切換</div></div><span class="pill">${cc.toUpperCase()}</span></div><div class="grid g2" style="margin-top:12px"><div class="setting"><b>👮 警察 ${e.police}</b></div><div class="setting"><b>🚒 消防 ${e.fire}</b></div><div class="setting"><b>🚑 救護 ${e.ambulance}</b></div>${e.extra?`<div class="setting"><b>☎️ ${e.extra}</b></div>`:''}</div><div class="muted" style="margin-top:10px">國家依旅行名稱與地圖位置自動辨識。</div>`;
   }
 
-  // Remove any legacy emergency card left in More.
   function removeLegacyEmergency(){const more=$('more');if(!more)return;[...more.querySelectorAll('.card')].forEach(c=>{const h=c.querySelector('h2');if(h&&h.textContent.includes('緊急聯絡'))c.remove()})}
 
-  // Override trip save: if user did not give coordinates, geocode by trip name after save.
   const oldSaveTrip=window.saveTrip;
   if(oldSaveTrip){window.saveTrip=function(){const before=new Set(state.trips.map(x=>x.id));oldSaveTrip();setTimeout(async()=>{const t=trip();const isNew=!before.has(t.id);if(isNew||!t.center||Math.abs((t.center[0]||0)-35.6762)<0.5&&Math.abs((t.center[1]||0)-139.6503)<0.5)await geocodeTrip(t,true);moveTripTools();renderEmergency();try{renderItinerary()}catch(e){}},150)}}
 
@@ -115,4 +113,14 @@
   const sel=$('tripSelect');if(sel)sel.addEventListener('change',()=>setTimeout(async()=>{moveTripTools();await geocodeTrip(trip(),false);renderEmergency()},80));
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{moveTripTools();removeLegacyEmergency();renderEmergency()},250));
   setTimeout(()=>{moveTripTools();removeLegacyEmergency();renderEmergency()},300);
+})();
+
+// Load compact desktop/mobile itinerary layout.
+(() => {
+  if(document.getElementById('layout-v17-loader')) return;
+  const s=document.createElement('script');
+  s.id='layout-v17-loader';
+  s.src='./layout-v17.js?v=17';
+  s.defer=true;
+  document.head.appendChild(s);
 })();
