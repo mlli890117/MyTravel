@@ -16,4 +16,5 @@
   window.addEventListener('resize',applyLayout);document.addEventListener('DOMContentLoaded',()=>setTimeout(applyLayout,300));setTimeout(applyLayout,500);setInterval(compactNearby,1200);
   if(!document.querySelector('script[data-money-v19]')){const s=document.createElement('script');s.src='./money-v19.js?v=19';s.dataset.moneyV19='1';document.body.appendChild(s)}
   if(!document.querySelector('script[data-mobile-v20]')){const s=document.createElement('script');s.src='./mobile-v20.js?v=20';s.dataset.mobileV20='1';document.body.appendChild(s)}
+  if(!document.querySelector('script[data-gmaps-v27]')){const s=document.createElement('script');s.src='./google-maps-v27.js?v=27';s.dataset.gmapsV27='1';document.body.appendChild(s)}
 })();
