@@ -1,4 +1,4 @@
-/* My Travel compact layout v19 */
+/* My Travel compact layout v20 */
 (() => {
   const $=id=>document.getElementById(id);
   let nearbyExpanded=false;
@@ -15,4 +15,5 @@
   const oldNearby=window.renderItinerary;if(oldNearby&&!oldNearby.__layout19){const wrapped=function(){const r=oldNearby.apply(this,arguments);setTimeout(compactNearby,80);return r};wrapped.__layout19=true;window.renderItinerary=wrapped}
   window.addEventListener('resize',applyLayout);document.addEventListener('DOMContentLoaded',()=>setTimeout(applyLayout,300));setTimeout(applyLayout,500);setInterval(compactNearby,1200);
   if(!document.querySelector('script[data-money-v19]')){const s=document.createElement('script');s.src='./money-v19.js?v=19';s.dataset.moneyV19='1';document.body.appendChild(s)}
+  if(!document.querySelector('script[data-mobile-v20]')){const s=document.createElement('script');s.src='./mobile-v20.js?v=20';s.dataset.mobileV20='1';document.body.appendChild(s)}
 })();
