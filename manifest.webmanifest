@@ -1,8 +1,13 @@
 {
-  "name": "My Travel",
+  "id": "./",
+  "name": "My Travel 旅行規劃",
   "short_name": "My Travel",
+  "description": "個人旅行行程、行前清單、地圖與旅費管理工具",
+  "lang": "zh-Hant",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#f7f8fb",
   "theme_color": "#0f172a",
   "icons": [
@@ -10,7 +15,13 @@
       "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }
