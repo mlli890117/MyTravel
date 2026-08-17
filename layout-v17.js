@@ -17,4 +17,5 @@
   if(!document.querySelector('script[data-money-v19]')){const s=document.createElement('script');s.src='./money-v19.js?v=19';s.dataset.moneyV19='1';document.body.appendChild(s)}
   if(!document.querySelector('script[data-mobile-v20]')){const s=document.createElement('script');s.src='./mobile-v20.js?v=20';s.dataset.mobileV20='1';document.body.appendChild(s)}
   if(!document.querySelector('script[data-gmaps-v27]')){const s=document.createElement('script');s.src='./google-maps-v27.js?v=27';s.dataset.gmapsV27='1';document.body.appendChild(s)}
+  if(!document.querySelector('script[data-picker-v28]')){const s=document.createElement('script');s.src='./map-picker-v28.js?v=28';s.dataset.pickerV28='1';document.body.appendChild(s)}
 })();
