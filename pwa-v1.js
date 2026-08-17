@@ -1,7 +1,6 @@
-/* My Travel PWA + Web Push registration v4 */
+/* My Travel PWA + Web Push registration v5 */
 (() => {
   const $=id=>document.getElementById(id);
-  const CFG='myTravel_supabase';
   const SUPABASE_URL='https://smgtefydmwoqovhldgvp.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY='sb_publishable_GFTHhoVfOHP2edTUSRJa3A_hnevKBeH';
   const VAPID_PUBLIC_KEY='BDk-gatnAmKJW-X_OaJz2GeZb5FWNOzt0l6Lf-HDpE2cRZakLVkaSVwxAmjwp9TolooDGcUeNDKgx7ud3MsTQSg';
@@ -26,6 +25,14 @@
 
   async function getExistingSubscription(){try{if(!('serviceWorker' in navigator))return null;return await (await swRegistration()).pushManager.getSubscription()}catch(_){return null}}
 
+  function apiHeaders(){
+    return {
+      'apikey':SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type':'application/json',
+      'Prefer':'return=minimal'
+    };
+  }
+
   async function saveSubscription(sub){
     const json=sub.toJSON();
     const row={
@@ -39,16 +46,29 @@
       last_seen_at:new Date().toISOString()
     };
 
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?on_conflict=endpoint`,{
+    // RLS 下不要用 UPSERT / RETURNING：ON CONFLICT 會需要 SELECT policy。
+    let res=await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`,{
       method:'POST',
-      headers:{
-        'apikey':SUPABASE_PUBLISHABLE_KEY,
-        'Authorization':`Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        'Content-Type':'application/json',
-        'Prefer':'resolution=merge-duplicates,return=representation'
-      },
+      headers:apiHeaders(),
       body:JSON.stringify(row)
     });
+
+    // endpoint 已存在時，改成單純 UPDATE；同樣不要求 RETURNING。
+    if(res.status===409){
+      res=await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(sub.endpoint)}`,{
+        method:'PATCH',
+        headers:apiHeaders(),
+        body:JSON.stringify({
+          p256dh:row.p256dh,
+          auth:row.auth,
+          device_name:row.device_name,
+          platform:row.platform,
+          user_agent:row.user_agent,
+          enabled:true,
+          last_seen_at:row.last_seen_at
+        })
+      });
+    }
 
     if(!res.ok){
       let detail='';
@@ -56,8 +76,7 @@
       console.error('Push subscription save failed',res.status,detail);
       throw new Error(`Push Subscription 寫入 Supabase 失敗 (${res.status})${detail?`：${detail}`:''}`);
     }
-
-    try{return await res.json()}catch(_){return null}
+    return true;
   }
 
   async function renderCard(){
