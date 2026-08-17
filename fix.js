@@ -1,3 +1,5 @@
+// My Travel compatibility + trip manager
+
 window.renderAll=function(){
   state=normalizeState(state);
   localStorage.setItem(LS,JSON.stringify(state));
@@ -8,7 +10,6 @@ window.renderAll=function(){
     ['renderMoney',renderMoney],
     ['renderMore',renderMore]
   ].forEach(([name,fn])=>{
-    try{ fn(); }
-    catch(e){ console.error(name+' failed',e); }
+    try{fn()}catch(e){console.error(name+' failed',e)}
   });
-};
+  try
