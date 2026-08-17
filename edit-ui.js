@@ -1,92 +1,42 @@
-/* My Travel editor + trip emergency v25 */
+/* My Travel editor + place search v26 */
 (() => {
   const $=id=>document.getElementById(id);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
-  let editingId=null;
-  let emergencyCache={};
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let editingId=null,searchTimer=null,searchSeq=0;
 
-  function countryHint(){
-    const s=`${trip()?.name||''} ${trip()?.theme||''}`.toLowerCase();
-    if(/日本|宮古|沖繩|北海道|札幌|東京|大阪|京都|福岡|japan|okinawa|miyako|sapporo|tokyo/.test(s))return'jp';
-    if(/韓國|首爾|釜山|濟州|korea|seoul|busan|jeju/.test(s))return'kr';
-    if(/新加坡|singapore/.test(s))return'sg';
-    if(/台灣|taiwan|taipei|台北/.test(s))return'tw';
-    return'';
+  function countryHint(){const s=`${trip()?.name||''} ${trip()?.theme||''}`.toLowerCase();if(/日本|宮古|沖繩|北海道|札幌|東京|大阪|京都|福岡|japan|okinawa|miyako|sapporo|tokyo/.test(s))return'jp';if(/韓國|首爾|釜山|濟州|korea|seoul|busan|jeju/.test(s))return'kr';if(/新加坡|singapore/.test(s))return'sg';if(/台灣|taiwan|taipei|台北/.test(s))return'tw';return''}
+  async function searchPlaces(q,limit=6){
+    q=(q||'').trim();if(!q)return[];const cc=countryHint(),center=trip()?.center||[];
+    const params=new URLSearchParams({format:'jsonv2',limit:String(limit),addressdetails:'1',namedetails:'1',q});if(cc)params.set('countrycodes',cc);
+    if(center.length===2&&Number.isFinite(Number(center[0]))&&Number.isFinite(Number(center[1]))){const lat=Number(center[0]),lon=Number(center[1]);params.set('viewbox',`${lon-1.5},${lat+1.5},${lon+1.5},${lat-1.5}`)}
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?${params}`,{cache:'no-store',headers:{Accept:'application/json','Accept-Language':'zh-TW,ja,en;q=0.8'}});if(!r.ok)throw new Error('search '+r.status);return await r.json();
   }
-
-  async function nominatimSearch(q,country=''){
-    if(!q)return null;
-    const url=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(q)}${country?`&countrycodes=${country}`:''}`;
-    const r=await fetch(url,{cache:'no-store',headers:{'Accept':'application/json','Accept-Language':'zh-TW,ja,en;q=0.8'}});
-    if(!r.ok)throw new Error('geocode '+r.status);
-    const a=await r.json();
-    if(!a?.[0])return null;
-    const lat=Number(a[0].lat),lng=Number(a[0].lon);
-    return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng,display:a[0].display_name||q}:null;
-  }
-
-  async function geocodeAddress(address,title=''){
-    if(!address?.trim()&&!title?.trim())return null;
-    const raw=(address||'').trim();
-    const clean=raw.replace(/〒?\s*\d{3}-?\d{4}/g,' ').replace(/\s+/g,' ').trim();
-    const t=(title||'').trim();
-    const tripName=(trip()?.name||'').trim();
-    const cc=countryHint();
-    const queries=[raw,clean,t&&`${t} ${tripName}`,t,clean&&`${clean} ${tripName}`].filter(Boolean);
-    try{
-      for(const q of [...new Set(queries)]){
-        let found=await nominatimSearch(q,cc);
-        if(found)return found;
-        if(cc){found=await nominatimSearch(q,'');if(found)return found;}
-      }
-      return null;
-    }catch(e){console.warn('address geocode failed',e);return null}
-  }
+  async function geocodeAddress(address,title=''){const qs=[address,title,`${title} ${trip()?.name||''}`].map(x=>(x||'').trim()).filter(Boolean);for(const q of [...new Set(qs)]){try{const a=await searchPlaces(q,1);if(a[0])return{lat:Number(a[0].lat),lng:Number(a[0].lon),display:a[0].display_name||q}}catch(e){console.warn(e)}}return null}
 
   function ensureEditorModal(){
-    let old=$('itemEditModal');if(old)old.remove();
-    const modal=document.createElement('div');modal.id='itemEditModal';modal.className='modal';
-    modal.innerHTML=`<div class="modalbox" style="width:min(760px,100%)">
-      <div class="row between"><h2>編輯行程</h2><button class="btn alt" type="button" onclick="closeItemEditor()">✕</button></div>
-      <div class="form" style="margin-top:14px">
-        <div><div class="muted" style="margin-bottom:5px">時間</div><input id="editItemTime" type="time"></div>
-        <div class="wide"><div class="muted" style="margin-bottom:5px">行程名稱</div><input id="editItemTitle" placeholder="景點／餐廳／交通"></div>
-        <div><div class="muted" style="margin-bottom:5px">類型</div><select id="editItemType"><option>景點</option><option>餐廳</option><option>交通</option><option>住宿</option><option>購物</option><option>滑雪</option><option>其他</option></select></div>
-        <div class="wide"><div class="muted" style="margin-bottom:5px">備註</div><input id="editItemNote" placeholder="備註"></div>
-        <div class="full"><div class="muted" style="margin-bottom:5px">地址／地點名稱</div><input id="editItemAddress" placeholder="例如：新千歲機場、札幌站、Watermark Hotel Miyakojima"></div>
-        <div><div class="muted" style="margin-bottom:5px">緯度（地址找不到時可手動填）</div><input id="editItemLat" type="number" step="any"></div>
-        <div><div class="muted" style="margin-bottom:5px">經度（地址找不到時可手動填）</div><input id="editItemLng" type="number" step="any"></div>
-      </div>
-      <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn alt" type="button" onclick="closeItemEditor()">取消</button><button class="btn" type="button" onclick="saveItemEditor()">儲存修改</button></div>
-    </div>`;
-    modal.addEventListener('click',e=>{if(e.target===modal)closeItemEditor()});document.body.appendChild(modal);
+    $('itemEditModal')?.remove();const m=document.createElement('div');m.id='itemEditModal';m.className='modal';
+    m.innerHTML=`<div class="modalbox" style="width:min(760px,100%)"><div class="row between"><h2>編輯行程</h2><button class="btn alt" onclick="closeItemEditor()">✕</button></div>
+    <div class="form" style="margin-top:14px"><div><div class="muted" style="margin-bottom:5px">時間</div><input id="editItemTime" type="time"></div><div class="wide"><div class="muted" style="margin-bottom:5px">行程名稱</div><input id="editItemTitle" placeholder="景點／餐廳／交通"></div><div><div class="muted" style="margin-bottom:5px">類型</div><select id="editItemType"><option>景點</option><option>餐廳</option><option>交通</option><option>住宿</option><option>購物</option><option>滑雪</option><option>其他</option></select></div><div class="wide"><div class="muted" style="margin-bottom:5px">備註</div><input id="editItemNote" placeholder="備註"></div>
+    <div class="full"><div class="muted" style="margin-bottom:5px">搜尋地點</div><div class="row"><input id="editPlaceSearch" placeholder="輸入 17END、下地島機場、札幌站…"><button id="editPlaceSearchBtn" class="btn alt" type="button">搜尋</button></div><div id="editPlaceResults" style="display:none;margin-top:7px;border:1px solid #d8dee9;border-radius:12px;overflow:hidden"></div></div>
+    <div class="full"><div class="muted" style="margin-bottom:5px">地址／地點名稱</div><input id="editItemAddress" placeholder="選擇搜尋結果後會自動帶入，也可自行輸入"></div><div><div class="muted" style="margin-bottom:5px">緯度</div><input id="editItemLat" type="number" step="any"></div><div><div class="muted" style="margin-bottom:5px">經度</div><input id="editItemLng" type="number" step="any"></div></div>
+    <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn alt" onclick="closeItemEditor()">取消</button><button id="editSaveBtn" class="btn" onclick="saveItemEditor()">儲存修改</button></div></div>`;
+    m.addEventListener('click',e=>{if(e.target===m)closeItemEditor()});document.body.appendChild(m);
+    $('editPlaceSearchBtn').onclick=()=>runPlaceSearch();$('editPlaceSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runPlaceSearch()}});$('editPlaceSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(runPlaceSearch,550)});
   }
-
-  window.editItineraryItem=function(id){
-    ensureEditorModal();const item=(trip().itinerary[curDate]||[]).find(x=>x.id===id);if(!item)return;editingId=id;
-    $('editItemTime').value=item.time||'10:00';$('editItemTitle').value=item.title||'';$('editItemType').value=item.type||'景點';$('editItemNote').value=item.note||'';$('editItemAddress').value=item.address||'';$('editItemLat').value=item.lat??'';$('editItemLng').value=item.lng??'';
-    $('itemEditModal').classList.add('show');setTimeout(()=>$('editItemTitle')?.focus(),50);
-  };
+  async function runPlaceSearch(){
+    const input=$('editPlaceSearch'),box=$('editPlaceResults');if(!input||!box)return;const q=input.value.trim();if(q.length<2){box.style.display='none';return}const seq=++searchSeq;box.style.display='block';box.innerHTML='<div class="muted" style="padding:10px">搜尋中…</div>';
+    try{let a=await searchPlaces(q,6);if(seq!==searchSeq)return;if(!a.length&&countryHint()){const params=new URLSearchParams({format:'jsonv2',limit:'6',addressdetails:'1',namedetails:'1',q});const r=await fetch(`https://nominatim.openstreetmap.org/search?${params}`,{cache:'no-store',headers:{Accept:'application/json','Accept-Language':'zh-TW,ja,en;q=0.8'}});a=await r.json()}
+      if(!a.length){box.innerHTML='<div class="muted" style="padding:10px">找不到地點，可換成景點名稱、英文或日文名稱。</div>';return}
+      box.innerHTML=a.map((p,i)=>`<button type="button" data-i="${i}" style="display:block;width:100%;border:0;border-bottom:1px solid #e5e7eb;background:#fff;text-align:left;padding:10px;cursor:pointer"><b>${esc(p.namedetails?.name||p.name||q)}</b><div class="muted" style="margin-top:3px">${esc(p.display_name||'')}</div></button>`).join('');
+      [...box.querySelectorAll('button')].forEach(b=>b.onclick=()=>{const p=a[Number(b.dataset.i)];$('editItemAddress').value=p.display_name||q;$('editItemLat').value=p.lat;$('editItemLng').value=p.lon;input.value=p.namedetails?.name||p.name||q;box.style.display='none'});
+    }catch(e){console.warn(e);box.innerHTML='<div class="muted" style="padding:10px">目前無法搜尋地點，請稍後再試。</div>'}
+  }
+  window.editItineraryItem=function(id){ensureEditorModal();const item=(trip().itinerary[curDate]||[]).find(x=>x.id===id);if(!item)return;editingId=id;$('editItemTime').value=item.time||'10:00';$('editItemTitle').value=item.title||'';$('editItemType').value=item.type||'景點';$('editItemNote').value=item.note||'';$('editItemAddress').value=item.address||'';$('editItemLat').value=item.lat??'';$('editItemLng').value=item.lng??'';$('editPlaceSearch').value=item.title||item.address||'';$('itemEditModal').classList.add('show')};
   window.closeItemEditor=function(){editingId=null;$('itemEditModal')?.classList.remove('show')};
-  window.saveItemEditor=async function(){
-    if(!editingId)return;const arr=trip().itinerary[curDate]||[],item=arr.find(x=>x.id===editingId);if(!item)return;
-    const title=$('editItemTitle').value.trim();if(!title)return alert('請輸入行程名稱');
-    const address=$('editItemAddress').value.trim();let lat=parseFloat($('editItemLat').value),lng=parseFloat($('editItemLng').value),found=null;
-    const saveBtn=document.querySelector('#itemEditModal .btn:not(.alt)');if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='定位中…'}
-    if(address||title)found=await geocodeAddress(address,title);
-    if(found){lat=found.lat;lng=found.lng;$('editItemLat').value=lat;$('editItemLng').value=lng;}
-    item.time=$('editItemTime').value||'10:00';item.title=title;item.type=$('editItemType').value;item.note=$('editItemNote').value.trim();item.address=address;item.lat=Number.isFinite(lat)?lat:null;item.lng=Number.isFinite(lng)?lng:null;
-    arr.sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));closeItemEditor();save();
-    if(address&&!found&&!Number.isFinite(lat))alert('仍找不到這個地址。可以改填「地點名稱」，例如 17END、下地島機場、札幌站；或手動填經緯度。');
-  };
+  window.saveItemEditor=async function(){if(!editingId)return;const arr=trip().itinerary[curDate]||[],item=arr.find(x=>x.id===editingId);if(!item)return;const title=$('editItemTitle').value.trim();if(!title)return alert('請輸入行程名稱');const address=$('editItemAddress').value.trim();let lat=parseFloat($('editItemLat').value),lng=parseFloat($('editItemLng').value),found=null;const btn=$('editSaveBtn');if(btn){btn.disabled=true;btn.textContent='儲存中…'}if((address||title)&&(!Number.isFinite(lat)||!Number.isFinite(lng)))found=await geocodeAddress(address,title);if(found){lat=found.lat;lng=found.lng}item.time=$('editItemTime').value||'10:00';item.title=title;item.type=$('editItemType').value;item.note=$('editItemNote').value.trim();item.address=address;item.lat=Number.isFinite(lat)?lat:null;item.lng=Number.isFinite(lng)?lng:null;arr.sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));closeItemEditor();save();if(!Number.isFinite(lat)||!Number.isFinite(lng))alert('這個行程還沒有地圖座標，請使用「搜尋地點」選一個結果。')};
 
-  const emergency={jp:{name:'日本',police:'110',fire:'119',ambulance:'119',extras:['JNTO 旅客熱線 050-3816-2787']},kr:{name:'韓國',police:'112',fire:'119',ambulance:'119',extras:['韓國旅遊諮詢 1330']},tw:{name:'台灣',police:'110',fire:'119',ambulance:'119',extras:['外來人士服務專線 1990']},us:{name:'美國',police:'911',fire:'911',ambulance:'911',extras:[]},ca:{name:'加拿大',police:'911',fire:'911',ambulance:'911',extras:[]},gb:{name:'英國',police:'999 / 112',fire:'999 / 112',ambulance:'999 / 112',extras:[]},fr:{name:'法國',police:'17 / 112',fire:'18 / 112',ambulance:'15 / 112',extras:[]},de:{name:'德國',police:'110',fire:'112',ambulance:'112',extras:[]},it:{name:'義大利',police:'112',fire:'112',ambulance:'112',extras:[]},es:{name:'西班牙',police:'112',fire:'112',ambulance:'112',extras:[]},is:{name:'冰島',police:'112',fire:'112',ambulance:'112',extras:[]},au:{name:'澳洲',police:'000',fire:'000',ambulance:'000',extras:[]},nz:{name:'紐西蘭',police:'111',fire:'111',ambulance:'111',extras:[]},sg:{name:'新加坡',police:'999',fire:'995',ambulance:'995',extras:[]},th:{name:'泰國',police:'191',fire:'199',ambulance:'1669',extras:['觀光警察 1155']},my:{name:'馬來西亞',police:'999',fire:'999',ambulance:'999',extras:[]},ph:{name:'菲律賓',police:'911',fire:'911',ambulance:'911',extras:[]},vn:{name:'越南',police:'113',fire:'114',ambulance:'115',extras:[]},hk:{name:'香港',police:'999',fire:'999',ambulance:'999',extras:[]},mo:{name:'澳門',police:'999',fire:'999',ambulance:'999',extras:[]}};
-  function removeOldEmergency(){const more=$('more');if(!more)return;[...more.querySelectorAll('.card')].forEach(c=>{const h=c.querySelector('h2');if(h&&h.textContent.includes('緊急聯絡'))c.remove()})}
-  function ensureEmergencyCard(){let card=$('tripEmergencyCard');if(card)return card;const itinerary=$('itinerary');if(!itinerary)return null;card=document.createElement('div');card.id='tripEmergencyCard';card.className='card';card.style.marginTop='16px';const tools=$('tripTools');if(tools)tools.appendChild(card);else itinerary.appendChild(card);return card}
+  const emergency={jp:{name:'日本',police:'110',fire:'119',ambulance:'119',extras:['JNTO 旅客熱線 050-3816-2787']},kr:{name:'韓國',police:'112',fire:'119',ambulance:'119',extras:['韓國旅遊諮詢 1330']},tw:{name:'台灣',police:'110',fire:'119',ambulance:'119',extras:['外來人士服務專線 1990']},us:{name:'美國',police:'911',fire:'911',ambulance:'911',extras:[]},is:{name:'冰島',police:'112',fire:'112',ambulance:'112',extras:[]},sg:{name:'新加坡',police:'999',fire:'995',ambulance:'995',extras:[]}};
   function guessCountryFromText(t){const s=`${t.name||''} ${t.theme||''}`.toLowerCase();if(/日本|東京|北海道|札幌|宮古|沖繩|大阪|京都|福岡|仙台|名古屋|japan|tokyo|sapporo|okinawa|osaka|kyoto/.test(s))return'jp';if(/韓國|首爾|釜山|濟州|korea|seoul|busan|jeju/.test(s))return'kr';if(/新加坡|singapore/.test(s))return'sg';if(/冰島|iceland/.test(s))return'is';if(/台灣|taiwan|taipei|台北/.test(s))return'tw';return''}
-  async function countryCodeForTrip(t){const key=(t.center||[]).join(',');if(emergencyCache[key])return emergencyCache[key];let cc=guessCountryFromText(t);try{if(Array.isArray(t.center)&&t.center.length===2){const[lat,lon]=t.center,r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=5&addressdetails=1`,{cache:'no-store'});if(r.ok){const j=await r.json();cc=(j.address?.country_code||cc||'').toLowerCase()}}}catch(e){}emergencyCache[key]=cc||'unknown';return emergencyCache[key]}
-  async function renderTripEmergency(){removeOldEmergency();const card=ensureEmergencyCard();if(!card)return;const t=trip();card.innerHTML='<h2>緊急聯絡</h2><div class="muted">正在辨識目前旅行國家…</div>';const cc=await countryCodeForTrip(t),e=emergency[cc];if(!e){card.innerHTML='<h2>緊急聯絡</h2><div class="note">目前尚未建立這個國家的緊急電話資料。</div>';return}card.innerHTML=`<div class="row between"><div><h2>${esc(e.name)}緊急聯絡</h2><div class="muted">依目前選擇的旅行「${esc(t.name)}」自動切換</div></div><span class="pill">${cc.toUpperCase()}</span></div><div class="grid g2" style="margin-top:12px"><div class="setting"><b>👮 警察 ${esc(e.police)}</b></div><div class="setting"><b>🚒 消防 ${esc(e.fire)}</b></div><div class="setting"><b>🚑 救護 ${esc(e.ambulance)}</b></div>${e.extras.map(x=>`<div class="setting"><b>☎️ ${esc(x)}</b></div>`).join('')}</div>`}
-  window.refreshTripEmergency=renderTripEmergency;
-  function hook(){removeOldEmergency();renderTripEmergency();const sel=$('tripSelect');if(sel&&!sel.dataset.emergencyHook){sel.dataset.emergencyHook='1';sel.addEventListener('change',()=>setTimeout(renderTripEmergency,100))}}
-  setTimeout(hook,100);
+  async function renderTripEmergency(){let card=$('tripEmergencyCard');if(!card){card=document.createElement('div');card.id='tripEmergencyCard';card.className='card';card.style.marginTop='16px';$('tripTools')?.appendChild(card)}if(!card)return;const t=trip(),cc=guessCountryFromText(t),e=emergency[cc];if(!e){card.innerHTML='<h2>緊急聯絡</h2><div class="note">目前尚未建立這個國家的緊急電話資料。</div>';return}card.innerHTML=`<div class="row between"><div><h2>${esc(e.name)}緊急聯絡</h2><div class="muted">依目前選擇的旅行「${esc(t.name)}」自動切換</div></div><span class="pill">${cc.toUpperCase()}</span></div><div class="grid g2" style="margin-top:12px"><div class="setting"><b>👮 警察 ${esc(e.police)}</b></div><div class="setting"><b>🚒 消防 ${esc(e.fire)}</b></div><div class="setting"><b>🚑 救護 ${esc(e.ambulance)}</b></div>${e.extras.map(x=>`<div class="setting"><b>☎️ ${esc(x)}</b></div>`).join('')}</div>`}
+  window.refreshTripEmergency=renderTripEmergency;setTimeout(()=>{renderTripEmergency();const s=$('tripSelect');if(s&&!s.dataset.emergencyHook){s.dataset.emergencyHook='1';s.addEventListener('change',()=>setTimeout(renderTripEmergency,100))}},100);
 })();
