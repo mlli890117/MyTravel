@@ -1,9 +1,8 @@
-/* My Travel checklist reminders v3 */
+/* My Travel checklist reminders v4 - background Push is the single device-notification source */
 (() => {
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const pad=n=>String(n).padStart(2,'0');
-  const REPEAT_MS=6*60*60*1000;
   const reminderText=v=>{if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toLocaleString('zh-TW',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})};
   let reminderCtx=null;
 
@@ -28,26 +27,15 @@
     if(!('Notification' in window))return alert('這個瀏覽器不支援系統通知');
     if(!window.isSecureContext)return alert('系統通知需要 HTTPS');
     const p=await Notification.requestPermission();
-    if(p==='granted'){
-      await showDeviceNotification('My Travel 通知已開啟',{body:'之後行前清單到提醒時間時，會顯示裝置通知。',tag:'mytravel-test'});
-      renderNotificationStatus();
-    }else alert(p==='denied'?'你已拒絕通知權限，可到瀏覽器／系統設定重新開啟。':'尚未允許通知。');
+    if(p==='granted')renderNotificationStatus();
+    else alert(p==='denied'?'你已拒絕通知權限，可到瀏覽器／系統設定重新開啟。':'尚未允許通知。');
   }
   window.enableTravelNotifications=enableNotifications;
-
-  async function showDeviceNotification(title,options={}){
-    if(!('Notification' in window)||Notification.permission!=='granted')return false;
-    try{
-      if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.ready;await reg.showNotification(title,{icon:'./icon.svg',badge:'./icon.svg',...options})}
-      else new Notification(title,options);
-      return true;
-    }catch(e){console.warn('notification failed',e);return false}
-  }
 
   function ensureReminderModal(){
     if($('reminderModal'))return;
     const m=document.createElement('div');m.id='reminderModal';m.className='modal';
-    m.innerHTML=`<div class="modalbox" style="width:min(620px,100%)"><div class="row between"><div><h2 style="margin:0">設定行前提醒</h2><div class="muted" style="margin-top:4px">設定完成後，到時間會在網頁及已允許通知的裝置提醒。</div></div><button class="btn alt" type="button" onclick="closeReminderEditor()">✕</button></div><div class="modalgrid" style="margin-top:18px"><div class="full"><label>待辦事項</label><input id="reminderItemName" readonly></div><div><label>提醒日期</label><input id="reminderDate" type="date"></div><div><label>提醒時間</label><input id="reminderTime" type="time" step="60"></div></div><div class="note" style="margin-top:14px">提醒會依你目前裝置的當地時間設定；若逾期仍未完成，重新開啟網站時會再次提醒。</div><div class="row" style="justify-content:space-between;margin-top:18px;flex-wrap:wrap"><button id="removeReminderBtn" class="btn red" type="button" onclick="removeCurrentReminder()">取消提醒</button><div class="row"><button class="btn alt" type="button" onclick="closeReminderEditor()">取消</button><button class="btn" type="button" onclick="saveReminderEditor()">儲存提醒</button></div></div></div>`;
+    m.innerHTML=`<div class="modalbox" style="width:min(620px,100%)"><div class="row between"><div><h2 style="margin:0">設定行前提醒</h2><div class="muted" style="margin-top:4px">設定完成後，背景推播會在提醒時間通知你；未完成時每 12 小時再次提醒。</div></div><button class="btn alt" type="button" onclick="closeReminderEditor()">✕</button></div><div class="modalgrid" style="margin-top:18px"><div class="full"><label>待辦事項</label><input id="reminderItemName" readonly></div><div><label>提醒日期</label><input id="reminderDate" type="date"></div><div><label>提醒時間</label><input id="reminderTime" type="time" step="60"></div></div><div class="note" style="margin-top:14px">提醒會依你目前裝置的當地時間設定；逾期未完成項目也會保留在首頁清單中。</div><div class="row" style="justify-content:space-between;margin-top:18px;flex-wrap:wrap"><button id="removeReminderBtn" class="btn red" type="button" onclick="removeCurrentReminder()">取消提醒</button><div class="row"><button class="btn alt" type="button" onclick="closeReminderEditor()">取消</button><button class="btn" type="button" onclick="saveReminderEditor()">儲存提醒</button></div></div></div>`;
     m.addEventListener('click',e=>{if(e.target===m)closeReminderEditor()});document.body.appendChild(m);
   }
 
@@ -68,7 +56,7 @@
   function renderNotificationStatus(){
     let box=$('travelNotificationStatus');if(!box){const checkCard=$('checkRows')?.closest('.card');if(!checkCard)return;box=document.createElement('div');box.id='travelNotificationStatus';box.className='setting';box.style.marginBottom='10px';const inputRow=$('checkInput')?.closest('.row');if(inputRow)inputRow.before(box)}
     const supported='Notification' in window,p=supported?Notification.permission:'unsupported';const text=p==='granted'?'✅ 裝置通知已開啟':p==='denied'?'⚠️ 裝置通知已被拒絕':p==='default'?'🔔 尚未開啟裝置通知':'此瀏覽器不支援裝置通知';
-    box.innerHTML=`<div class="row between"><div><b>${text}</b><div class="muted">逾期未完成時，重新開啟網站也會再次提醒。</div></div>${p!=='granted'&&supported?'<button class="btn sm" onclick="enableTravelNotifications()">開啟通知</button>':''}</div>`;
+    box.innerHTML=`<div class="row between"><div><b>${text}</b><div class="muted">系統通知由背景 Push 發送；網站只顯示逾期未完成清單，不會再重複發同一則通知。</div></div>${p!=='granted'&&supported?'<button class="btn sm" onclick="enableTravelNotifications()">開啟通知</button>':''}</div>`;
   }
 
   window.renderChecks=function(){
@@ -94,23 +82,15 @@
   }
   window.renderOverdueHome=renderOverdueHome;
 
-  async function checkDueReminders(forceOnOpen=false){
-    normalizeChecks();const now=Date.now();let changed=false;
-    for(const {trip:t,item:i,due} of overdueItems()){
-      const last=i.lastNotifiedAt?new Date(i.lastNotifiedAt).getTime():0;
-      const shouldNotify=forceOnOpen||!last||!Number.isFinite(last)||(now-last>=REPEAT_MS);
-      if(!shouldNotify)continue;
-      const body=`${t.emoji||'✈️'} ${t.name}｜${i.name}`;showToast(`🔔 行前提醒：${body}`);await showDeviceNotification('My Travel 行前提醒',{body,tag:`check-${t.id}-${i.id}`,data:{url:location.href}});i.notifiedAt=new Date().toISOString();i.lastNotifiedAt=i.notifiedAt;changed=true;
-    }
-    if(changed){localStorage.setItem(LS,JSON.stringify(state));if(typeof pushCloud==='function'&&sb)pushCloud();try{renderChecks()}catch(e){}}
-    renderOverdueHome();
-  }
-
-  function showToast(text){const n=document.createElement('div');n.textContent=text;n.style.cssText='position:fixed;right:18px;top:18px;z-index:99999;max-width:380px;background:#0f172a;color:white;padding:14px 16px;border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.25);font-weight:700';document.body.appendChild(n);setTimeout(()=>n.remove(),8000)}
+  // Device notifications are intentionally NOT emitted here anymore.
+  // The Supabase scheduled Edge Function is the single notification source.
+  // This avoids duplicate alerts when the PWA is open or becomes visible.
+  function refreshReminderUI(){normalizeChecks();renderOverdueHome()}
 
   normalizeChecks();ensureReminderModal();
-  const start=()=>setTimeout(()=>{try{renderChecks()}catch(e){};renderOverdueHome();checkDueReminders(true)},450);
+  const start=()=>setTimeout(()=>{try{renderChecks()}catch(e){};refreshReminderUI()},450);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
-  window.addEventListener('pageshow',e=>{if(e.persisted)setTimeout(()=>checkDueReminders(true),250)});
-  window.addEventListener('focus',()=>checkDueReminders(false));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkDueReminders(false)});setInterval(()=>checkDueReminders(false),30000);
+  window.addEventListener('pageshow',()=>setTimeout(refreshReminderUI,250));
+  window.addEventListener('focus',refreshReminderUI);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshReminderUI()});
 })();
