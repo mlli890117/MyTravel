@@ -1,17 +1,8 @@
-const CACHE='my-travel-v6';
-const ASSETS=['./manifest.webmanifest','./icon.svg','./fix.js'];
+const CACHE='my-travel-v7';
+const ASSETS=['./manifest.webmanifest','./icon.svg','./app.js?v=7'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
-self.addEventListener('activate',e=>e.waitUntil(Promise.all([clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))])));
+self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))])));
 self.addEventListener('fetch',e=>{
-  if(e.request.mode==='navigate'){
-    e.respondWith(fetch(e.request,{cache:'no-store'}).then(async r=>{
-      let html=await r.text();
-      const marker="<script>\nconst LS='myTravel_v1'";
-      if(html.includes(marker))html=html.replace(marker,"<script src='./fix.js?v=6'></script>\n"+marker);
-      else if(!html.includes('./fix.js'))html=html.replace('</head>',"<script src='./fix.js?v=6'></script></head>");
-      return new Response(html,{status:r.status,statusText:r.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
-    }).catch(()=>caches.match(e.request)));
-    return;
-  }
-  e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return r}).catch(()=>caches.match(e.request)));
+ if(e.request.mode==='navigate'){e.respondWith(fetch(e.request,{cache:'no-store'}).catch(()=>caches.match('./index.html')));return}
+ e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{let c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)));
 });
