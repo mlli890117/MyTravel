@@ -1,5 +1,6 @@
 /* My Travel personal checklist + shopping list v1 */
 (()=>{
+ window.state=state;
  const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const who=()=>window.myTravelPersonName?.()||localStorage.getItem('myTravel_person_name')||'';
  function tFor(sel){return state.trips.find(t=>t.id===$(sel)?.value)||trip()}
