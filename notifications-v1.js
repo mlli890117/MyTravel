@@ -1,10 +1,10 @@
-/* My Travel checklist reminders v4 - background Push is the single device-notification source */
+/* My Travel checklist reminders v5 - background Push is the single device-notification source */
 (() => {
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const pad=n=>String(n).padStart(2,'0');
   const reminderText=v=>{if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toLocaleString('zh-TW',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})};
-  let reminderCtx=null;
+  let reminderCtx=null,checkEditCtx=null;
 
   function normalizeChecks(){
     (state.trips||[]).forEach(t=>(t.checks||[]).forEach(i=>{
@@ -39,6 +39,13 @@
     m.addEventListener('click',e=>{if(e.target===m)closeReminderEditor()});document.body.appendChild(m);
   }
 
+  function ensureCheckEditModal(){
+    if($('checkEditModal'))return;
+    const m=document.createElement('div');m.id='checkEditModal';m.className='modal';
+    m.innerHTML=`<div class="modalbox" style="width:min(680px,100%)"><div class="row between" style="align-items:flex-start"><div><h2 style="margin:0">編輯行前事項</h2><div class="muted" style="margin-top:4px">可一次修改待辦內容、完成狀態與提醒時間。</div></div><button class="btn alt" type="button" onclick="closeCheckEditor()">✕</button></div><div class="modalgrid" style="margin-top:18px"><div class="full"><label>待辦內容</label><input id="checkEditName" placeholder="例如：確認護照效期"></div><div><label>提醒日期</label><input id="checkEditDate" type="date"></div><div><label>提醒時間</label><input id="checkEditTime" type="time" step="60"></div><div class="full"><label class="row" style="gap:8px;align-items:center"><input id="checkEditDone" type="checkbox" style="width:auto"><span>已完成</span></label></div></div><div class="note" style="margin-top:14px">若修改提醒時間，後端會視為新的提醒週期；到新時間會重新推播，未完成則每 12 小時再次提醒。</div><div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn alt" type="button" onclick="closeCheckEditor()">取消</button><button class="btn" type="button" onclick="saveCheckEditor()">儲存修改</button></div></div>`;
+    m.addEventListener('click',e=>{if(e.target===m)closeCheckEditor()});document.body.appendChild(m);
+  }
+
   window.closeReminderEditor=function(){reminderCtx=null;$('reminderModal')?.classList.remove('show')};
   window.editCheckReminder=function(tid,id){
     ensureReminderModal();const t=state.trips.find(x=>x.id===tid),i=t?.checks.find(x=>x.id===id);if(!i)return;
@@ -53,6 +60,25 @@
   };
   window.removeCurrentReminder=function(){if(!reminderCtx)return;const t=state.trips.find(x=>x.id===reminderCtx.tid),i=t?.checks.find(x=>x.id===reminderCtx.id);if(!i)return;i.remindAt=null;i.notifiedAt=null;i.lastNotifiedAt=null;closeReminderEditor();save();setTimeout(renderOverdueHome,50)};
 
+  window.closeCheckEditor=function(){checkEditCtx=null;$('checkEditModal')?.classList.remove('show')};
+  window.editCheckName=function(tid,id){
+    ensureCheckEditModal();const t=state.trips.find(x=>x.id===tid),i=t?.checks.find(x=>x.id===id);if(!i)return;
+    checkEditCtx={tid,id};$('checkEditName').value=i.name||'';$('checkEditDone').checked=!!i.done;
+    let d=i.remindAt?new Date(i.remindAt):null;
+    if(d&&!Number.isNaN(d.getTime())){$('checkEditDate').value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;$('checkEditTime').value=`${pad(d.getHours())}:${pad(d.getMinutes())}`}
+    else{$('checkEditDate').value='';$('checkEditTime').value=''}
+    $('checkEditModal').classList.add('show');setTimeout(()=>$('checkEditName')?.focus(),50);
+  };
+  window.saveCheckEditor=function(){
+    if(!checkEditCtx)return;const t=state.trips.find(x=>x.id===checkEditCtx.tid),i=t?.checks.find(x=>x.id===checkEditCtx.id);if(!i)return;
+    const name=String($('checkEditName')?.value||'').trim();if(!name)return alert('請輸入待辦內容');
+    const date=$('checkEditDate')?.value||'',time=$('checkEditTime')?.value||'';
+    if((date&&!time)||(!date&&time))return alert('提醒日期與時間請一起填寫，或兩者都留空');
+    i.name=name;i.done=!!$('checkEditDone')?.checked;
+    if(date&&time){const d=new Date(`${date}T${time}:00`);if(Number.isNaN(d.getTime()))return alert('提醒時間格式不正確');i.remindAt=d.toISOString();i.notifiedAt=null;i.lastNotifiedAt=null}else{i.remindAt=null;i.notifiedAt=null;i.lastNotifiedAt=null}
+    closeCheckEditor();save();setTimeout(()=>{renderOverdueHome();try{renderChecks()}catch(e){}},50);
+  };
+
   function renderNotificationStatus(){
     let box=$('travelNotificationStatus');if(!box){const checkCard=$('checkRows')?.closest('.card');if(!checkCard)return;box=document.createElement('div');box.id='travelNotificationStatus';box.className='setting';box.style.marginBottom='10px';const inputRow=$('checkInput')?.closest('.row');if(inputRow)inputRow.before(box)}
     const supported='Notification' in window,p=supported?Notification.permission:'unsupported';const text=p==='granted'?'✅ 裝置通知已開啟':p==='denied'?'⚠️ 裝置通知已被拒絕':p==='default'?'🔔 尚未開啟裝置通知':'此瀏覽器不支援裝置通知';
@@ -65,7 +91,6 @@
   };
 
   window.addCheck=function(){const n=String($('checkInput')?.value||'').trim();if(!n)return;const t=state.trips.find(x=>x.id===$('checkTripSelect')?.value)||trip();t.checks.push({id:crypto.randomUUID(),name:n,done:false,remindAt:null,notifiedAt:null,lastNotifiedAt:null});$('checkInput').value='';save();setTimeout(renderOverdueHome,50)};
-  window.editCheckName=function(tid,id){const t=state.trips.find(x=>x.id===tid),i=t?.checks.find(x=>x.id===id);if(!i)return;const n=prompt('修改待辦內容',i.name);if(n===null||!n.trim())return;i.name=n.trim();save();setTimeout(renderOverdueHome,50)};
   window.deleteCheckItem=function(tid,id){const t=state.trips.find(x=>x.id===tid),i=t?.checks.find(x=>x.id===id);if(!i)return;if(!confirm(`刪除「${i.name}」？`))return;t.checks=t.checks.filter(x=>x.id!==id);save();setTimeout(renderOverdueHome,50)};
 
   window.completeOverdueCheck=function(tid,id){const t=state.trips.find(x=>x.id===tid),i=t?.checks.find(x=>x.id===id);if(!i)return;i.done=true;save();setTimeout(()=>{renderOverdueHome();try{renderChecks()}catch(e){}},50)};
@@ -82,12 +107,9 @@
   }
   window.renderOverdueHome=renderOverdueHome;
 
-  // Device notifications are intentionally NOT emitted here anymore.
-  // The Supabase scheduled Edge Function is the single notification source.
-  // This avoids duplicate alerts when the PWA is open or becomes visible.
   function refreshReminderUI(){normalizeChecks();renderOverdueHome()}
 
-  normalizeChecks();ensureReminderModal();
+  normalizeChecks();ensureReminderModal();ensureCheckEditModal();
   const start=()=>setTimeout(()=>{try{renderChecks()}catch(e){};refreshReminderUI()},450);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
   window.addEventListener('pageshow',()=>setTimeout(refreshReminderUI,250));
