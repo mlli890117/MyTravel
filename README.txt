@@ -28,3 +28,5 @@ MY TRAVEL PWA
 
 【PWA】
 若要完整支援「加入主畫面」與 Service Worker，建議放到 HTTPS 網站上，例如 GitHub Pages / Cloudflare Pages / Netlify。
+
+Deploy retry: 2026-08-18
