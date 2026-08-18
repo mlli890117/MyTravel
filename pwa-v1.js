@@ -6,7 +6,7 @@
   const VAPID_PUBLIC_KEY='BDk-gatnAmKJW-X_OaJz2GeZb5FWNOzt0l6Lf-HDpE2cRZakLVkaSVwxAmjwp9TolooDGcUeNDKgx7ud3MsTQSg';
   const PERSON_KEY='myTravel_person_name';
   let deferredInstallPrompt=null,pushBusy=false;
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   function isStandalone(){return window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true}
   function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)}
   function platform(){if(isIOS())return'ios';if(/android/i.test(navigator.userAgent))return'android';if(/windows/i.test(navigator.userAgent))return'windows';if(/mac/i.test(navigator.userAgent))return'macos';return'web'}
@@ -26,3 +26,5 @@
   window.enableMyTravelPush=async function(){if(pushBusy)return;pushBusy=true;try{if(!personName())throw new Error('請先選擇「這台裝置是誰」');if(isIOS()&&!isStandalone())throw new Error('iPhone 必須先加入主畫面，再從 My Travel App 開啟通知');if(!('Notification'in window)||!('PushManager'in window))throw new Error('這個瀏覽器目前不支援 Web Push');const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error('你尚未允許 My Travel 傳送通知');const reg=await swRegistration();let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64UrlToUint8Array(VAPID_PUBLIC_KEY)});await saveSubscription(sub);try{await reg.showNotification('My Travel 通知已開啟',{body:`這台裝置已設定為 ${personName()}。`,icon:'./icon.svg',badge:'./icon.svg',tag:'push-ready'})}catch(_){}await renderCard()}catch(e){alert(e?.message||String(e));await renderCard()}finally{pushBusy=false}};
   window.installMyTravelApp=async function(){if(!deferredInstallPrompt)return renderCard();deferredInstallPrompt.prompt();try{await deferredInstallPrompt.userChoice}catch(_){}deferredInstallPrompt=null;renderCard()};window.showIOSInstallHelp=()=>alert('iPhone 安裝方式：\n1. 使用 Safari 開啟 My Travel\n2. 點「分享」\n3. 選擇「加入主畫面」\n4. 從主畫面的 My Travel 圖示重新開啟');window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;renderCard()});window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;renderCard()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')renderCard()});window.addEventListener('focus',renderCard);ensureHead();registerSW();const start=()=>setTimeout(renderCard,650);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
+// Load per-person checklist/shopping behavior after the existing UI modules.
+(()=>{if(document.querySelector('script[data-personal-lists]'))return;const s=document.createElement('script');s.src='./personal-lists-v1.js?v=1';s.dataset.personalLists='1';document.body.appendChild(s)})();
