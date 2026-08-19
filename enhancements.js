@@ -1,6 +1,8 @@
-/* My Travel enhancements v14 */
+/* My Travel enhancements v15 */
 (() => {
   const liveRecCache={},liveRecLoading={},FX_CHECK_KEY='myTravel_fx_last_check';
+  window.myTravelLiveRecCache=liveRecCache;
+  window.myTravelGetLiveRecommendation=i=>liveRecCache[curTrip]?.items?.[Number(i)]||null;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const bySelect=id=>state.trips.find(x=>x.id===document.getElementById(id)?.value)||trip();
 
@@ -18,12 +20,11 @@
   function installNearbyHeader(){const grid=document.getElementById('recGrid'),head=grid?.closest('.card')?.querySelector('.row.between');if(!head)return;let b=head.querySelector('#nearbyRefresh');if(!b){head.lastElementChild?.remove();b=document.createElement('button');b.id='nearbyRefresh';b.className='btn sm alt';b.onclick=()=>maybeFetchNearby(true);head.appendChild(b)}b.textContent=liveRecLoading[curTrip]?'搜尋中…':'↻ 網路更新';b.disabled=!!liveRecLoading[curTrip]}
   const poiType=t=>t.tourism==='viewpoint'?'展望景點':t.tourism==='museum'?'博物館':t.amenity==='cafe'?'咖啡廳':t.amenity==='restaurant'?'餐廳':'景點';
   function renderLive(){const data=liveRecCache[curTrip]?.items,el=document.getElementById('recGrid');if(!data?.length||!el)return;el.innerHTML=data.map((r,i)=>`<div class="rec"><b>${esc(r.name)}</b><div class="muted">${esc(r.note)}</div><div class="row" style="margin-top:7px"><button class="btn sm" onclick="addLiveRec(${i})">＋加入</button><button class="btn sm alt" onclick="map.setView([${r.lat},${r.lng}],15)">地圖</button></div></div>`).join('')}
-  window.addLiveRec=i=>{const r=liveRecCache[curTrip]?.items?.[i];if(r){trip().itinerary[curDate].push({id:crypto.randomUUID(),time:'10:00',title:r.name,type:r.type,note:r.note,lat:r.lat,lng:r.lng});save()}};
+  window.addLiveRec=i=>{const r=window.myTravelGetLiveRecommendation(i);if(r){trip().itinerary[curDate].push({id:crypto.randomUUID(),time:'10:00',title:r.name,type:r.type,note:r.note,lat:r.lat,lng:r.lng});save()}};
   window.maybeFetchNearby=async force=>{const t=trip(),cache=liveRecCache[t.id];if(!force&&cache&&Date.now()-cache.time<1800000){renderLive();return}if(liveRecLoading[t.id])return;liveRecLoading[t.id]=true;installNearbyHeader();try{const [lat,lng]=t.center,q=`[out:json][timeout:20];(nwr(around:10000,${lat},${lng})[tourism~"attraction|viewpoint|museum|gallery"];nwr(around:10000,${lat},${lng})[amenity~"cafe|restaurant"];);out center tags 40;`,r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(q)}),d=await r.json(),seen=new Set(),items=[];for(const x of d.elements||[]){const z=x.tags||{},name=z['name:zh']||z['name:ja']||z.name,la=x.lat??x.center?.lat,lo=x.lon??x.center?.lon;if(!name||seen.has(name)||!Number.isFinite(la)||!Number.isFinite(lo))continue;seen.add(name);const type=poiType(z);items.push({name,type,note:`網路即時 POI · ${type}`,lat:la,lng:lo});if(items.length>=12)break}if(items.length)liveRecCache[t.id]={items,time:Date.now()};renderLive()}catch(e){if(force)alert('目前無法取得網路附近推薦。')}finally{liveRecLoading[t.id]=false;installNearbyHeader()}};
 
   const oldIt=window.renderItinerary;if(oldIt)window.renderItinerary=function(){oldIt();installNearbyHeader();renderLive();maybeFetchNearby(false)};
   window.addEventListener('load',()=>setTimeout(()=>refreshDailyFx(false),1200));
 })();
 
-// Load itinerary/date modules, then the rebuilt modal editor.
 (()=>{const load=(id,src,cb)=>{const old=document.getElementById(id);if(old)old.remove();const s=document.createElement('script');s.id=id;s.src=src;s.onload=()=>cb&&cb();document.head.appendChild(s)};load('planner-v11-loader','./planner-v11.js?v=14',()=>load('edit-ui-loader','./edit-ui.js?v=14'))})();
