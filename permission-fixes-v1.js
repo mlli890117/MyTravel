@@ -1,4 +1,4 @@
-/* My Travel remaining permission fixes v1 */
+/* My Travel remaining permission fixes v2 */
 (()=>{
  const sb=()=>window.myTravelAuth,has=k=>window.myTravelHasPermission?.(k)===true,admin=()=>window.myTravelIsSuperAdmin?.()===true,uid=()=>window.myTravelCurrentProfile?.()?.user_id||'',tripNow=()=>typeof trip==='function'?trip():(state.trips||[]).find(t=>t.id===curTrip);
  function apply(){
@@ -10,7 +10,17 @@
   document.querySelectorAll('#moneyPeopleList .person-chip button').forEach(b=>b.style.display=(admin()||has('expense.change_own'))?'':'none');
  }
  function guard(name,ok,msg){const old=window[name];if(typeof old!=='function'||old._permFix)return;const fn=function(...args){if(!admin()&&!ok(...args)){alert(msg);return}return old.apply(this,args)};fn._permFix=true;window[name]=fn}
- async function persistNearby(i){if(!admin()&&!has('itinerary.add'))return alert('你沒有新增行程的權限');const t=tripNow();if(!t)return alert('目前沒有旅行');const title=String(i?.name||i?.title||'附近推薦').trim();const row={id:crypto.randomUUID(),trip_id:t.id,trip_date:curDate,item_time:i?.time||'10:00',type:i?.type||'景點',title,note:i?.note||i?.category||'',address:i?.address||'',lat:Number.isFinite(+i?.lat)?+i.lat:null,lng:Number.isFinite(+i?.lng)?+i.lng:null,created_by:uid(),data:{source:'nearby'}};const{error}=await sb().from('trip_itinerary_v2').insert(row);if(error)return alert('加入行程失敗：'+error.message);const pids=(t.memberIds||[]).map(id=>(state.people||[]).find(p=>p.id===id)?.user_id).filter(Boolean);if(pids.length)await sb().from('itinerary_participants_v2').insert(pids.map(user_id=>({itinerary_id:row.id,user_id})));await window.myTravelLoadV2?.()}
+ function normalizeRec(input){if(typeof input==='number'||/^\d+$/.test(String(input??''))){const r=window.myTravelGetLiveRecommendation?.(Number(input));if(r)return r}if(input&&typeof input==='object')return input;return null}
+ async function persistNearby(input){
+  if(!admin()&&!has('itinerary.add'))return alert('你沒有新增行程的權限');
+  const t=tripNow();if(!t)return alert('目前沒有旅行');
+  const i=normalizeRec(input);if(!i?.name&&!i?.title)return alert('找不到推薦景點資料，請重新整理附近推薦後再加入');
+  const title=String(i.name||i.title).trim(),type=String(i.type||'景點').trim()||'景點',note=String(i.note||i.category||'').trim();
+  const row={id:crypto.randomUUID(),trip_id:t.id,trip_date:curDate,item_time:i.time||'10:00',type,title,note,address:i.address||'',lat:Number.isFinite(+i.lat)?+i.lat:null,lng:Number.isFinite(+i.lng)?+i.lng:null,created_by:uid(),data:{source:'nearby',poi_name:title}};
+  const{error}=await sb().from('trip_itinerary_v2').insert(row);if(error)return alert('加入行程失敗：'+error.message);
+  const pids=(t.memberIds||[]).map(id=>(state.people||[]).find(p=>p.id===id)?.user_id).filter(Boolean);if(pids.length)await sb().from('itinerary_participants_v2').insert(pids.map(user_id=>({itinerary_id:row.id,user_id})));
+  await window.myTravelLoadV2?.();
+ }
  function install(){
   guard('openPersonModal',()=>has('expense.add'),'你沒有新增旅伴的權限');
   guard('deletePerson',()=>has('expense.change_own'),'你沒有修改旅伴的權限');
